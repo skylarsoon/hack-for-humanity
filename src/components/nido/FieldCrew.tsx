@@ -8,21 +8,21 @@ import { cn } from "@/lib/utils";
 
 export function FieldCrew() {
   const { households, queue, setQueue, deliver } = useNido();
-  const [hid, setHid] = useState(households[0].id);
+  const [hid, setHid] = useState(households[0]?.id ?? "");
   const [items, setItems] = useState<string[]>([]);
   const [photo, setPhoto] = useState(false);
 
   const toggle = (k: string) => setItems((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]));
 
   function save() {
-    if (!items.length) return toast.error("Toque al menos un ícono");
+    if (!items.length) { toast.error("Toque al menos un ícono"); return; }
     setQueue((q) => [...q, { id: `q${Date.now()}`, householdId: hid, items, photo, at: new Date().toTimeString().slice(0, 5) }]);
     setItems([]); setPhoto(false);
     toast.success("Guardado sin señal ✔");
   }
 
   function sync() {
-    if (!queue.length) return toast("Nada pendiente");
+    if (!queue.length) { toast("Nada pendiente"); return; }
     queue.forEach((u) => {
       const real = u.items.filter((i) => i !== "Alerta Derrumbe");
       const usd = real.reduce((s, i) => s + (SUPPLIES.find((x) => x.key === i)?.usd ?? 0), 0);
