@@ -30,3 +30,6 @@ use the editor.
 <!-- LOVABLE:END -->
 
 - Keep unregistered field IDs as session-only provider options, separate from mapped household records; unknown IDs must remain queued until a coordinator registers a real household, preventing fabricated locations and expenses.
+- Keep document fixtures and validation in a browser-safe module separate from the workbench; sample results must never be represented as actual AI extraction.
+- Apply shared household, expense, and impact-total changes in one pure reducer so batched approvals cannot diverge or double-count households.
+- Use TanStack server functions, not Supabase Edge Functions, for future app-internal document analysis; this stack requires server-only credential boundaries.
