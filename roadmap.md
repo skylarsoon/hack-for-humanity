@@ -9,7 +9,7 @@
 
 ## Workbench document review
 
-- [ ] Personalized household surveys: paused until the user reviews the proposed questions; do not build yet.
+- [x] Personalized household surveys using the uploaded bilingual questions.
 
 - [x] Replace the donor portrait photo with the newly uploaded community group photo and verify it displays.
 
