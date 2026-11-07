@@ -33,3 +33,4 @@ use the editor.
 - Keep document fixtures and validation in a browser-safe module separate from the workbench; sample results must never be represented as actual AI extraction.
 - Apply shared household, expense, and impact-total changes in one pure reducer so batched approvals cannot diverge or double-count households.
 - Use TanStack server functions, not Supabase Edge Functions, for future app-internal document analysis; this stack requires server-only credential boundaries.
+- Keep drizzle.config.ts pointed at the generated schema and migration directory so draft migration checks can run without database credentials.
