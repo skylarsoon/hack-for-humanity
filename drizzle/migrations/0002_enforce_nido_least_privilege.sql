@@ -1,0 +1,10 @@
+REVOKE ALL ON public.households,public.documents,public.household_needs,public.expenses,public.expense_items,public.expense_households FROM anon,authenticated;
+GRANT SELECT (id,vereda,community,members,phase,status,cost_usd) ON public.households TO anon;
+GRANT SELECT,INSERT,UPDATE ON public.households,public.household_needs,public.expenses,public.expense_items,public.expense_households TO authenticated;
+GRANT SELECT ON public.household_needs,public.expenses,public.expense_items,public.expense_households TO anon;
+GRANT SELECT,INSERT ON public.documents TO authenticated;
+REVOKE ALL ON public.public_households,public.category_totals FROM anon,authenticated;
+GRANT SELECT ON public.public_households,public.category_totals TO anon,authenticated;
+REVOKE ALL ON FUNCTION public.approve_expense(text,text,public.expense_method,text,date,numeric,numeric,smallint,jsonb,uuid) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.approve_census(text,uuid,jsonb) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.approve_expense(text,text,public.expense_method,text,date,numeric,numeric,smallint,jsonb,uuid),public.approve_census(text,uuid,jsonb) TO authenticated;
