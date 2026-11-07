@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Copy, FileText, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useNido } from "@/lib/nido-store";
@@ -6,43 +6,56 @@ import { AFFECTED, BASE_ASSISTED, BASE_SPENT_USD, TOTAL_RAISED_USD, USD_TO_COP, 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { SAMPLE_DELAY_MS, sampleDocument, supportedPhoto, validApproval, type MingaDoc, type SampleKind } from "@/lib/minga-documents";
 
-type Doc = { title: string; preview: string; household: string; item: string; qty: number; cop: number; vendor: string; low?: string };
-
-const SAMPLES: Record<"census" | "acta" | "factura", Doc> = {
-  census: { title: "Paper Census Form", preview: "CENSO — Vereda La Maizena\nJefe de hogar: Gómez, Arnulfo\nPersonas: 5\nNecesita: tejas de zinc (1? 7?)", household: "fam_01", item: "Tejas de Zinc", qty: 12, cop: 1007760, vendor: "Censo comunitario", low: "Handwriting check: Quantity looks like 12 or 17 Tejas de Zinc" },
-  acta: { title: "Signed Acta Receipt", preview: "ACTA DE ENTREGA\nResguardo Ibanacuara\nRecibe: Fam. Queragama\n6 tejas, 1 kit agua\nFirma: ✍", household: "fam_03", item: "Tejas de Zinc", qty: 6, cop: 587860, vendor: "Acta Ibanacuara", low: "Handwriting check: signature partially smudged" },
-  factura: { title: "Hardware Store Factura", preview: "FERRETERÍA PIJAO\nFactura FV-00912\n2 lámparas solares\nTOTAL $226.100", household: "fam_05", item: "Lámpara Solar", qty: 2, cop: 226100, vendor: "Ferretería Pijao" },
-};
-const STEPS = ["1. Classifying Document", "2. Extracting Spanish Handwriting & COP/USD", "3. Checking 78 Families for Duplicates"];
+const STEPS = ["1. Document classification", "2. Handwriting & COP/USD review", "3. Household match review"];
 
 export function Workbench() {
   const { households, deliver, currency, extraSpent, extraAssisted } = useNido();
-  const [doc, setDoc] = useState<Doc | null>(null);
+  const [doc, setDoc] = useState<MingaDoc | null>(null);
   const [img, setImg] = useState<string | null>(null);
   const [step, setStep] = useState(0);
-  const [merge, setMerge] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [fallback, setFallback] = useState(false);
+  const [acknowledged, setAcknowledged] = useState(false);
+  const [uploadName, setUploadName] = useState("");
+  const pending = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const previewUrl = useRef<string | null>(null);
   const [drag, setDrag] = useState(false);
   const [dispatch, setDispatch] = useState<{ es: string; en: string } | null>(null);
 
-  useEffect(() => {
-    if (!doc || step >= 3) return;
-    const t = setTimeout(() => setStep((s) => s + 1), 800);
-    return () => clearTimeout(t);
-  }, [doc, step]);
+  useEffect(() => () => {
+    pending.current.forEach(clearTimeout);
+    if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
+  }, []);
 
-  function load(d: Doc, image: string | null = null) { setDoc({ ...d }); setImg(image); setStep(0); setMerge(true); }
+  function load(kind: SampleKind, image: string | null = null, name = "") {
+    pending.current.forEach(clearTimeout);
+    if (previewUrl.current && previewUrl.current !== image) URL.revokeObjectURL(previewUrl.current);
+    previewUrl.current = image;
+    setImg(image); setUploadName(name); setDoc(null); setStep(0);
+    setBusy(true); setFallback(Boolean(image)); setAcknowledged(false);
+    pending.current = [
+      setTimeout(() => setStep(1), SAMPLE_DELAY_MS / 3),
+      setTimeout(() => setStep(2), SAMPLE_DELAY_MS * 2 / 3),
+      setTimeout(() => { setDoc(sampleDocument(kind)); setStep(3); setBusy(false); }, SAMPLE_DELAY_MS),
+    ];
+  }
   function onFile(f?: File) {
     if (!f) return;
-    load({ ...SAMPLES.census, title: f.name }, f.type.startsWith("image/") ? URL.createObjectURL(f) : null);
+    if (!supportedPhoto(f.type)) { toast.error("Choose a PNG or JPG photo."); return; }
+    load("census", URL.createObjectURL(f), f.name);
   }
   const match = doc && households.find((h) => h.id === doc.household);
+  const canApprove = doc && validApproval(doc, households.map((h) => h.id)) && acknowledged;
 
   function approve() {
-    if (!doc) return;
-    deliver(doc.household, [doc.item], Math.round(doc.cop / USD_TO_COP), doc.vendor, `AI-${Date.now().toString().slice(-5)}`);
-    toast.success(`Published to Open Books: ${match?.name} → verified green`);
+    if (!doc || !canApprove) return;
+    deliver(doc.household, [doc.item], Math.round(doc.cop / USD_TO_COP), doc.vendor, `SAMPLE-${crypto.randomUUID()}`);
+    toast.success(`Sample approved: ${match?.name} → delivered; ledger updated`);
     setDoc(null); setImg(null);
+    if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
+    previewUrl.current = null;
   }
 
   function genDispatch() {
@@ -58,6 +71,7 @@ export function Workbench() {
     <div className="space-y-8">
       <section className="rounded-xl bg-card p-6 shadow-card">
         <h2 className="text-2xl font-semibold">Unified Smart Minga Dropzone</h2>
+        <p role="status" className="mt-3 rounded-lg border border-warning bg-warning/15 p-3 text-sm">Sample mode · Real photo analysis is not connected. Approvals update this session only.</p>
         <label
           onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
           onDragLeave={() => setDrag(false)}
@@ -66,15 +80,15 @@ export function Workbench() {
         >
           <Upload className="h-8 w-8 text-primary" />
           <span className="font-medium">Drop a census form, acta or factura photo</span>
-          <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => onFile(e.target.files?.[0])} />
+          <input aria-label="Upload document photo" type="file" accept="image/png,image/jpeg" className="hidden" onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ""; }} />
         </label>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => load(SAMPLES.census)}>Load Sample Paper Census Form</Button>
-          <Button variant="outline" onClick={() => load(SAMPLES.acta)}>Load Signed Acta Receipt</Button>
-          <Button variant="outline" onClick={() => load(SAMPLES.factura)}>Load Hardware Store Factura</Button>
+          <Button variant="outline" onClick={() => load("census")}>Load Sample Paper Census Form</Button>
+          <Button variant="outline" onClick={() => load("acta")}>Load Signed Acta Receipt</Button>
+          <Button variant="outline" onClick={() => load("factura")}>Load Hardware Store Factura</Button>
         </div>
 
-        {doc && (
+        {(doc || busy) && (
           <>
             <div className="mt-6 grid gap-2 md:grid-cols-3">
               {STEPS.map((s, i) => (
@@ -84,37 +98,41 @@ export function Workbench() {
               ))}
             </div>
 
-            {step >= 3 && (
+            {doc && step >= 3 && (
               <div className="mt-6 grid gap-6 md:grid-cols-2">
                 <div className="rounded-xl border bg-muted p-4">
-                  <p className="mb-2 flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4" />{doc.title}</p>
+                  <p className="mb-2 flex items-center gap-2 break-all text-sm font-semibold"><FileText className="h-4 w-4 shrink-0" />{uploadName || doc.title}</p>
                   {img ? <img src={img} alt="Uploaded document" className="max-h-80 w-full rounded object-contain" /> : <pre className="whitespace-pre-wrap rounded bg-card p-4 font-display text-lg italic">{doc.preview}</pre>}
+                  {fallback && <p role="alert" className="mt-3 text-sm text-destructive">This photo has not been analyzed. The fields are sample census data, not extracted from your photo.</p>}
                 </div>
                 <div className="space-y-3">
+                  <p className="text-xs font-semibold text-muted-foreground">SAMPLE · {doc.doc_type.replaceAll("_", " ")}</p>
                   <Field label="Item"><Input value={doc.item} onChange={(e) => setDoc({ ...doc, item: e.target.value })} /></Field>
                   <Field label="Quantity">
-                    <Input type="number" value={doc.qty} onChange={(e) => setDoc({ ...doc, qty: +e.target.value })} className={doc.low ? "border-warning bg-warning/15" : ""} />
-                    {doc.low && <span className="mt-1 inline-block rounded bg-warning px-2 py-0.5 text-xs font-medium text-warning-foreground">⚠ {doc.low}</span>}
+                    <Input min={1} step={1} type="number" value={doc.qty} onChange={(e) => setDoc({ ...doc, qty: +e.target.value })} className={doc.low_confidence_warnings.length ? "border-warning bg-warning/15" : ""} />
+                    {doc.low_confidence_warnings.map((warning) => <span key={warning} className="mt-1 inline-block rounded bg-warning px-2 py-0.5 text-xs font-medium text-warning-foreground">⚠ {warning}</span>)}
                   </Field>
                   <Field label="Amount (COP)">
-                    <Input type="number" value={doc.cop} onChange={(e) => setDoc({ ...doc, cop: +e.target.value })} />
+                    <Input min={0} type="number" value={doc.cop} onChange={(e) => setDoc({ ...doc, cop: +e.target.value })} />
                     <span className="text-xs text-muted-foreground">≈ {formatMoney(doc.cop / USD_TO_COP, "USD")}</span>
                   </Field>
                   <Field label="Household">
                     <select value={doc.household} onChange={(e) => setDoc({ ...doc, household: e.target.value })} className="w-full rounded-md border bg-card p-2 text-sm">
+                      <option value="">Select a household</option>
                       {households.map((h) => <option key={h.id} value={h.id}>{h.name} ({h.id})</option>)}
                     </select>
                   </Field>
-                  {match && (
+                  {doc.entity_resolution?.is_potential_duplicate && (
                     <div className="rounded-lg border border-accent bg-accent/10 p-3 text-sm">
-                      <b>92% Match:</b> Looks like existing record '{match.name} ({match.id})' in {match.vereda}. Merge into existing household instead of creating duplicate?
+                      <b>{Math.round(doc.entity_resolution.similarity_score * 100)}% Match:</b> {doc.entity_resolution.explanation}
                       <div className="mt-2 flex gap-2">
-                        <Button size="sm" variant={merge ? "default" : "outline"} onClick={() => setMerge(true)}>Merge</Button>
-                        <Button size="sm" variant={!merge ? "default" : "outline"} onClick={() => setMerge(false)}>Keep separate</Button>
+                        <Button size="sm" variant={doc.household === doc.entity_resolution.matched_family_id ? "default" : "outline"} onClick={() => { const resolution = doc.entity_resolution; if (resolution) setDoc({ ...doc, household: resolution.matched_family_id }); }}>Merge</Button>
+                        <Button size="sm" variant="outline" onClick={() => setDoc({ ...doc, household: "", entity_resolution: null })}>Choose another household</Button>
                       </div>
                     </div>
                   )}
-                  <Button className="h-12 w-full bg-success text-primary-foreground hover:bg-success/90" onClick={approve}><Check /> Approve & Publish to Open Books</Button>
+                  <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} className="mt-1" />I reviewed these sample fields and want to update the demo dashboard.</label>
+                  <Button disabled={!canApprove} className="min-h-12 w-full whitespace-normal bg-success text-primary-foreground hover:bg-success/90" onClick={approve}><Check className="shrink-0" /> Approve & Publish to Open Books</Button>
                 </div>
               </div>
             )}
