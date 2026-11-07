@@ -8,6 +8,6 @@ describe("buildSurvey", () => {
   });
   it("offers selected needs as priority options", () => {
     const s = buildSurvey(["Recreación"]);
-    expect(s.at(-1)!.questions[0].options).toEqual(["Recreación"]);
+    expect(s.at(-1)?.questions[0]?.options).toEqual(["Recreación"]);
   });
 });

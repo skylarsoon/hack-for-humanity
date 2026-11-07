@@ -1,6 +1,6 @@
 // Bilingual field survey questions from "Pijao Survey Questions" document.
 export type QType = "text" | "number" | "choice";
-export interface SurveyQuestion { id: string; en: string; es: string; type: QType; options?: string[] }
+export interface SurveyQuestion { id: string; en: string; es: string; type: QType; options?: string[] | undefined }
 export interface SurveySection { key: string; title: string; questions: SurveyQuestion[] }
 
 const YN = ["Sí / Yes", "No"];
@@ -108,6 +108,6 @@ export function finalSection(selected: string[]): SurveySection {
 
 /** Only selected categories appear, in supply order, between general and final questions. */
 export function buildSurvey(selected: string[]): SurveySection[] {
-  const cats = Object.keys(SECTIONS).filter((k) => selected.includes(k)).map((k) => SECTIONS[k]);
+  const cats = Object.entries(SECTIONS).filter(([k]) => selected.includes(k)).map(([, s]) => s);
   return [GENERAL, ...cats, finalSection(selected)];
 }
