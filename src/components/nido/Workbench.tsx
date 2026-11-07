@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useServerFn } from "@tanstack/react-start";
 import { analyzeMingaDocument } from "@/lib/minga-analyze.functions";
+// Shared fixtures retain the HH household IDs used by the map, ledger and field queue.
 import { SAMPLE_DELAY_MS, sampleDocument, supportedPhoto, validApproval, type MingaDoc, type SampleKind } from "@/lib/minga-documents";
 
 const STEPS = ["1. Document classification", "2. Handwriting & COP/USD review", "3. Household match review"];
