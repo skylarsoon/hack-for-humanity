@@ -7,6 +7,7 @@ import { T } from "@/lib/nido-data";
 import { Dashboard } from "@/components/nido/Dashboard";
 import { FieldCrew } from "@/components/nido/FieldCrew";
 import { Workbench } from "@/components/nido/Workbench";
+import { Builders } from "@/components/nido/Builders";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Toaster } from "@/components/ui/sonner";
@@ -45,7 +46,7 @@ function Toggle<V extends string>({ value, options, onChange }: { value: V; opti
 
 function App() {
   const { lang, setLang, currency, setCurrency } = useNido();
-  const [view, setView] = useState<"dash" | "field" | "ai">("dash");
+  const [view, setView] = useState<"dash" | "field" | "build" | "ai">("dash");
   const t = T[lang];
 
   return (
@@ -69,7 +70,7 @@ function App() {
           </Dialog>
         </div>
         <nav className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4">
-          {(["dash", "field", "ai"] as const).map((v) => (
+          {(["dash", "field", "build", "ai"] as const).map((v) => (
             <button key={v} onClick={() => setView(v)} className={cn("whitespace-nowrap border-b-2 px-4 py-2 text-sm font-medium", view === v ? "border-accent text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>{t[v]}</button>
           ))}
         </nav>
@@ -77,6 +78,7 @@ function App() {
       <main className="mx-auto max-w-7xl px-4 py-6">
         {view === "dash" && <Dashboard />}
         {view === "field" && <FieldCrew />}
+        {view === "build" && <Builders />}
         {view === "ai" && <Workbench />}
       </main>
       <footer className="py-8 text-center text-xs text-muted-foreground">Espejo de Agua × Esto es Quindío · Alianza Nido · 1 USD = 3.230 COP</footer>

@@ -68,11 +68,11 @@ export function FieldCrew() {
       <section className="mt-4 border-y py-3">
         <label htmlFor="new-household-id" className="block text-sm font-semibold">¿El ID del hogar no está listado?</label>
         <form className="mt-2 flex gap-2" onSubmit={(event) => { event.preventDefault(); addId(); }}>
-          <Input id="new-household-id" value={newId} onChange={(event) => { setNewId(event.target.value); setIdError(null); }} placeholder="fam_09" aria-invalid={Boolean(idError)} aria-describedby={idError ? "household-id-error" : "household-id-note"} autoComplete="off" spellCheck={false} maxLength={12} className="min-w-0 flex-1" />
+          <Input id="new-household-id" value={newId} onChange={(event) => { setNewId(event.target.value); setIdError(null); }} placeholder="HH_09" aria-invalid={Boolean(idError)} aria-describedby={idError ? "household-id-error" : "household-id-note"} autoComplete="off" spellCheck={false} maxLength={12} className="min-w-0 flex-1" />
           <Button type="submit" variant="outline" aria-label="Añadir ID de hogar"><Plus className="h-4 w-4" /> Añadir</Button>
         </form>
         {idError && <p id="household-id-error" role="alert" className="mt-2 text-xs text-destructive">{idError}</p>}
-        <p id="household-id-note" className="mt-2 text-xs text-muted-foreground">Solo códigos como fam_09; no nombres, teléfonos ni direcciones. Los IDs añadidos duran esta sesión.</p>
+        <p id="household-id-note" className="mt-2 text-xs text-muted-foreground">Solo códigos como HH_09; no nombres, teléfonos ni direcciones. Los IDs añadidos duran esta sesión.</p>
       </section>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
