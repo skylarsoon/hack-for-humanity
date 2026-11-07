@@ -9,7 +9,7 @@
 
 ## Workbench document review
 
-- [ ] Add multi-request household surveys with conditional questions, private session queue, and flow tests.
+- [ ] Personalized household surveys: paused until the user reviews the proposed questions; do not build yet.
 
 - [x] Replace the donor portrait photo with the newly uploaded community group photo and verify it displays.
 
