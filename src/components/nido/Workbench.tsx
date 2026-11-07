@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 type Doc = { title: string; preview: string; household: string; item: string; qty: number; cop: number; vendor: string; low?: string };
 
-const SAMPLES: Record<string, Doc> = {
+const SAMPLES: Record<"census" | "acta" | "factura", Doc> = {
   census: { title: "Paper Census Form", preview: "CENSO — Vereda La Maizena\nJefe de hogar: Gómez, Arnulfo\nPersonas: 5\nNecesita: tejas de zinc (1? 7?)", household: "fam_01", item: "Tejas de Zinc", qty: 12, cop: 1007760, vendor: "Censo comunitario", low: "Handwriting check: Quantity looks like 12 or 17 Tejas de Zinc" },
   acta: { title: "Signed Acta Receipt", preview: "ACTA DE ENTREGA\nResguardo Ibanacuara\nRecibe: Fam. Queragama\n6 tejas, 1 kit agua\nFirma: ✍", household: "fam_03", item: "Tejas de Zinc", qty: 6, cop: 587860, vendor: "Acta Ibanacuara", low: "Handwriting check: signature partially smudged" },
   factura: { title: "Hardware Store Factura", preview: "FERRETERÍA PIJAO\nFactura FV-00912\n2 lámparas solares\nTOTAL $226.100", household: "fam_05", item: "Lámpara Solar", qty: 2, cop: 226100, vendor: "Ferretería Pijao" },
