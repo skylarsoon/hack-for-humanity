@@ -60,6 +60,10 @@ export const SUPPLIES = [
   { key: "Madera Bahareque", icon: "🪵", usd: 180 },
   { key: "Kit Agua/Higiene", icon: "💧", usd: 26 },
   { key: "Semillas Huerta", icon: "🌱", usd: 15 },
+  { key: "Primeros Auxilios", icon: "🩹", usd: 20 },
+  { key: "Panel Solar", icon: "☀️", usd: 120 },
+  { key: "Kit Esenciales", icon: "🛏️", usd: 30 },
+  { key: "Recreación", icon: "🎨", usd: 25 },
   { key: "Alerta Derrumbe", icon: "⚠️", usd: 0 },
 ] as const;
 
