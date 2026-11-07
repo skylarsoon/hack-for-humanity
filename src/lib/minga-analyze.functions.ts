@@ -32,9 +32,7 @@ const schema = {
 };
 
 // Most responsive model first (gemini-3.8-flash is often overloaded), then fallbacks for 429/503/timeouts.
-// Tried in order; 404 (not available to this key) and 429/5xx (overloaded) fall through to the next. Availability varies by API key:
-// check with GET /v1beta/models. The lite models are the most reliable fallback.
-const MODELS = [...new Set([process.env["GEMINI_MODEL"], "gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"].filter(Boolean))] as string[];
+const MODELS = [...new Set([process.env["GEMINI_MODEL"], "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.8-flash"].filter(Boolean))] as string[];
 const TIMEOUT_MS = 20_000;
 
 const buildPrompt = (list: string) => `You read disaster-relief paperwork from Pijao, Quindío, Colombia (Spanish, often handwritten, often photographed at an angle).
