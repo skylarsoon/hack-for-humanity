@@ -8,7 +8,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { publicHouseholdId } from "@/lib/public-households";
 import { matchesPublicHousehold } from "@/lib/public-household-search";
-import { CommunityPhotos } from "./CommunityPhotos";
 
 const PijaoMap = lazy(() => import("./PijaoMap"));
 
@@ -36,7 +35,6 @@ export function Dashboard() {
   return (
     <div className="space-y-6">
       <div className="space-y-3">
-      <CommunityPhotos lang={lang} />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <section aria-label={lang === "es" ? "Fondos de la comunidad" : "Community funding"} className="min-w-0 rounded-xl border border-primary/20 bg-card p-5 shadow-card sm:p-7 lg:col-span-2">
