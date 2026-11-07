@@ -20,3 +20,11 @@ describe("donor impact", () => {
     expect(whatItBuys(50).solarLamps).toBe(1);
   });
 });
+
+import { regionProgress } from "@/lib/donor-impact";
+describe("region progress", () => {
+  it("is spent divided by need, capped at 100%", () => {
+    expect(regionProgress(4500, 9000)).toBe(50);
+    expect(regionProgress(20000, 9000)).toBe(100);
+  });
+});

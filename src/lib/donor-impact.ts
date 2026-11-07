@@ -42,3 +42,14 @@ export function impactByVereda(expenses: Expense[], households: Household[]) {
 export function whatItBuys(usd: number) {
   return { roofSheets: Math.floor(usd / 26), waterKits: Math.floor(usd / 26), solarLamps: Math.floor(usd / 35) };
 }
+
+/** Region outlines are rough, public-safe areas — never household points. Recovery needs are estimates. */
+export const REGIONS: { vereda: Household["vereda"]; center: [number, number]; radiusM: number; needUsd: number }[] = [
+  { vereda: "Resguardo Ibanacuara", center: [4.347, -75.721], radiusM: 900, needUsd: 18000 },
+  { vereda: "Vereda La Maizena", center: [4.329, -75.694], radiusM: 800, needUsd: 12000 },
+  { vereda: "Los Juanes", center: [4.320, -75.706], radiusM: 800, needUsd: 9000 },
+];
+
+export function regionProgress(spentUsd: number, needUsd: number) {
+  return Math.min(100, Math.round((spentUsd / needUsd) * 100));
+}
