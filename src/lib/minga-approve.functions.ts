@@ -15,6 +15,7 @@ const Input = z.object({
   vendor: z.string().trim().max(120),
   receipt: z.string().trim().min(1).max(80),
   cop: z.number().finite().min(0).max(10_000_000_000),
+  estimated: z.boolean(),
   items: z.array(Item).min(1).max(50),
   transcription: z.string().max(20_000),
   warnings: z.array(z.string().max(500)).max(50),
@@ -28,6 +29,7 @@ export const approveMingaDocument = createServerFn({ method: "POST" })
   .validator((d: unknown) => Input.parse(d))
   .handler(async ({ data, context }): Promise<ApproveResult> => {
     const { supabase } = context;
+    if (data.docType !== "CENSUS_FORM" && data.cop <= 0) return { ok: false, error: "Enter the amount paid before approving." };
     const { data: household, error: hhError } = await supabase.from("public_households").select("id,phase").eq("id", data.household).maybeSingle();
     if (hhError || !household || household.phase == null) return { ok: false, error: "That household is not registered." };
 
@@ -41,7 +43,7 @@ export const approveMingaDocument = createServerFn({ method: "POST" })
     }
     const { error: docError } = await supabase.from("documents").insert({
       id: documentId, doc_type: data.docType, image_path: imagePath, transcription: data.transcription,
-      extracted: { vendor: data.vendor, cop: data.cop, items: data.items, warnings: data.warnings } as Json,
+      extracted: { vendor: data.vendor, cop: data.cop, cop_estimated: data.estimated, items: data.items, warnings: data.warnings } as Json,
     });
     if (docError) { console.error("Document insert failed", docError.message); return { ok: false, error: "Could not save the document." }; }
 

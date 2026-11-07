@@ -31,12 +31,23 @@ describe("receipt to database rows", () => {
 describe("ledger mapping and categories", () => {
   it("maps rows and fills missing categories with zero", () => {
     const l = mapLedger(
-      [{ id: "e1", date: "2026-11-07", vendor: "V", method: "Factura", description: "d", usd: "70", phase: 1, receipt: "R1", source: "ai", expense_households: [{ household_id: "HH_03" }], expense_items: [{ item: "Tejas", qty: 3, category: "roof", usd: 70 }] }],
+      [{ id: "e1", date: "2026-11-07", vendor: "V", method: "Factura", description: "d", usd: "70", phase: 1, receipt: "R1", source: "ai", created_at: "2026-11-07T10:00:00Z", expense_households: [{ household_id: "HH_03" }], expense_items: [{ item: "Tejas", qty: 3, category: "roof", usd: 70 }] }],
       [{ category: "roof", spent_usd: 70, needed_usd: "52" }],
     );
     expect(l.expenses[0]).toMatchObject({ usd: 70, householdIds: ["HH_03"], source: "ai" });
     expect(l.totals.roof).toEqual({ spent: 70, needed: 52 });
     expect(l.totals.water).toEqual({ spent: 0, needed: 0 });
+  });
+  it("estimates a missing total from reference prices and flags it", () => {
+    const raw = { doc_type: "SIGNED_ACTA", title: "t", transcription: "", household: "", vendor: "", low_confidence_warnings: [], match_score: 0, match_explanation: "",
+      line_items: [{ item: "Tejas de zinc", qty: 10, category: "roof" }, { item: "Lámpara solar", qty: 1, category: "energy" }] };
+    const a = toMingaDoc({ ...raw, total_cop: 0 }, []);
+    expect("doc" in a && a.doc.cop).toBe((10 * 26 + 35) * 3230);
+    expect("doc" in a && a.doc.cop_estimated).toBe(true);
+    const b = toMingaDoc({ ...raw, total_cop: 500000 }, []);
+    expect("doc" in b && [b.doc.cop, b.doc.cop_estimated]).toEqual([500000, false]);
+    const c = toMingaDoc({ ...raw, doc_type: "CENSUS_FORM", total_cop: 0 }, []);
+    expect("doc" in c && [c.doc.cop, c.doc.cop_estimated]).toEqual([0, false]);
   });
   it("uses the model's category, and falls back to keywords when it is invalid", () => {
     const raw = { doc_type: "HARDWARE_RECEIPT", title: "t", transcription: "", household: "", total_cop: 1, vendor: "", low_confidence_warnings: [], match_score: 0, match_explanation: "",

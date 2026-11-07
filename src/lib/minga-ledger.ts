@@ -12,6 +12,9 @@ export function unitUsd(item: string) {
   return hit?.usd ?? 0;
 }
 
+/** Total in COP implied by reference prices; used only to prefill a document that printed no total. */
+export const estimateCop = (items: { item: string; qty: number }[]) => items.reduce((sum, l) => sum + Math.max(1, l.qty) * unitUsd(l.item) * USD_TO_COP, 0);
+
 export const copToUsd = (cop: number) => Math.round((cop / USD_TO_COP) * 100) / 100;
 
 /** Splits totalUsd across lines (by qty x reference price, or qty alone when any line is unpriced) so the parts sum exactly. */

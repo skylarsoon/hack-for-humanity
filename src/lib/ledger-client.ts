@@ -4,7 +4,7 @@ import { mapLedger, type ExpenseRow, type Ledger, type TotalRow } from "./ledger
 export async function fetchLedger(): Promise<Ledger> {
   const { supabase } = await import("@/integrations/supabase/client");
   const [expenses, totals] = await Promise.all([
-    supabase.from("expenses").select("id,date,vendor,method,description,usd,phase,receipt,source,expense_households(household_id),expense_items(item,qty,category,usd)").order("date", { ascending: false }).order("created_at", { ascending: false }),
+    supabase.from("expenses").select("id,date,vendor,method,description,usd,phase,receipt,source,created_at,expense_households(household_id),expense_items(item,qty,category,usd)").order("date", { ascending: false }).order("created_at", { ascending: false }),
     supabase.from("category_totals").select("category,spent_usd,needed_usd"),
   ]);
   if (expenses.error) throw expenses.error;

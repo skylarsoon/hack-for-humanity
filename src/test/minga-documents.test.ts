@@ -21,6 +21,8 @@ describe("Minga document rules", () => {
     expect(validApproval({ ...sampleDocument("factura"), household: "HH_05" }, ["HH_05"])).toBe(true);
     expect(validApproval({ ...sampleDocument("acta"), line_items: [{ item: "Tejas de Zinc", qty: -1, category: "roof" as const }] }, ["HH_03"])).toBe(false);
     expect(validApproval({ ...sampleDocument("acta"), line_items: [] }, ["HH_03"])).toBe(false);
+    expect(validApproval({ ...sampleDocument("acta"), cop: 0 }, ["HH_03"])).toBe(false);
+    expect(validApproval({ ...sampleDocument("census"), cop: 0 }, ["HH_01"])).toBe(true);
   });
   it("accepts PNG and JPG photos only", () => {
     expect(supportedPhoto("image/png")).toBe(true);

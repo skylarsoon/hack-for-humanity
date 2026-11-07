@@ -15,7 +15,10 @@ function useNidoState() {
   const [phase, setPhase] = useState<Phase | null>(null);
   const [{ households: sessionHouseholds, expenses: sessionExpenses, extraSpent: sessionSpent, extraAssisted: sessionAssisted }, dispatchDelivery] = useReducer(deliveryReducer, undefined, initialDeliveryState);
   const [ledger, setLedger] = useState<Ledger | null>(null);
-  const refreshLedger = useCallback(() => { fetchLedger().then(setLedger).catch((e) => console.error("Ledger load failed; showing demo data", e)); }, []);
+  const [ledgerError, setLedgerError] = useState<string | null>(null);
+  const refreshLedger = useCallback(() => {
+    fetchLedger().then((l) => { setLedger(l); setLedgerError(null); }).catch((e) => { console.error("Ledger load failed; showing demo data", e); setLedgerError(e instanceof Error ? e.message : "Could not load the ledger."); });
+  }, []);
   useEffect(() => { refreshLedger(); return subscribeLedger(refreshLedger); }, [refreshLedger]);
 
   // Database rows win; session-only entries (field crew, sample approvals) are kept unless the database already has that receipt.
@@ -59,7 +62,7 @@ function useNidoState() {
     dispatchDelivery({ householdId, items, usd, vendor, receipt, id: `exp_${crypto.randomUUID()}`, date: new Date().toISOString().slice(0, 10) });
   }
 
-  return { categorySpent, categoryNeeded, ledgerLoaded: ledger !== null, refreshLedger, lang, setLang, currency, setCurrency, phase, setPhase, households, expenses, extraSpent, extraAssisted, queue, setQueue, deliver, fieldAddedIds, setFieldAddedIds };
+  return { ledgerError, categorySpent, categoryNeeded, ledgerLoaded: ledger !== null, refreshLedger, lang, setLang, currency, setCurrency, phase, setPhase, households, expenses, extraSpent, extraAssisted, queue, setQueue, deliver, fieldAddedIds, setFieldAddedIds };
 }
 
 const Ctx = createContext<ReturnType<typeof useNidoState> | null>(null);

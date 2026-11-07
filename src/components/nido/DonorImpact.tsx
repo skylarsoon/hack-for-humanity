@@ -7,6 +7,7 @@ import { CATEGORIES, impactByCategory, impactByVereda, regionProgress, REGIONS, 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+import { TransactionsTable } from "./TransactionsTable";
 const RegionMap = lazy(() => import("./RegionMap"));
 const GOFUNDME = "https://www.gofundme.com/f/support-pijao-families-after-earthquake-and-fires?cp_src=d";
 
@@ -37,6 +38,8 @@ export function DonorImpact() {
           ))}
         </div>
       </section>
+
+      <TransactionsTable variant="public" />
 
       <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
         <section className="rounded-xl bg-card p-6 shadow-card">

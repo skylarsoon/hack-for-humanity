@@ -32,6 +32,7 @@ export interface Expense {
   receipt: string;
   /** Set for rows loaded from the database. */
   source?: "ai" | "manual" | "seed";
+  createdAt?: string;
   items?: { item: string; qty: number; category: string }[];
 }
 

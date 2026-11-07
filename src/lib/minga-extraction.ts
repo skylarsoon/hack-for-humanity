@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { CATEGORIES, categorize, type ImpactCategory } from "./donor-impact";
+import { estimateCop } from "./minga-ledger";
 import type { MingaDoc } from "./minga-documents";
 
 /** Parses a Colombian-formatted amount: "." groups thousands and "," marks decimals ("$226.100" -> 226100). */
@@ -33,6 +34,7 @@ export function toMingaDoc(raw: unknown, households: { id: string; name: string 
   const r = parsed.data;
   const matched = households.find((h) => h.id === r.household);
   const score = Math.min(1, Math.max(0, r.match_score));
+  const printed = Math.max(0, parseCop(r.total_cop));
   const lines = r.line_items.map((l) => ({ item: l.item.trim(), qty: Math.max(1, Math.round(l.qty) || 1), category: l.category in CATEGORIES ? (l.category as ImpactCategory) : categorize(l.item) })).filter((l) => l.item);
   return {
     doc: {
@@ -41,7 +43,8 @@ export function toMingaDoc(raw: unknown, households: { id: string; name: string 
       doc_type: r.doc_type,
       household: matched?.id ?? "",
       line_items: lines.length ? lines : [{ item: "", qty: 1, category: "heal" }],
-      cop: Math.max(0, parseCop(r.total_cop)),
+      cop: printed || r.doc_type === "CENSUS_FORM" ? printed : Math.round(estimateCop(lines)),
+      cop_estimated: !printed && r.doc_type !== "CENSUS_FORM" && estimateCop(lines) > 0,
       vendor: r.vendor,
       low_confidence_warnings: r.low_confidence_warnings,
       entity_resolution: matched

@@ -11,6 +11,7 @@ import { analyzeMingaDocument } from "@/lib/minga-analyze.functions";
 import { approveMingaDocument } from "@/lib/minga-approve.functions";
 import { CATEGORIES, type ImpactCategory } from "@/lib/donor-impact";
 import { unpricedItems } from "@/lib/minga-ledger";
+import { TransactionsTable } from "./TransactionsTable";
 import { prepareImage } from "@/lib/image-prep";
 // Shared fixtures retain the HH household IDs used by the map, ledger and field queue.
 import { SAMPLE_DELAY_MS, sampleDocument, supportedPhoto, validApproval, type MingaDoc, type SampleKind } from "@/lib/minga-documents";
@@ -106,7 +107,7 @@ export function Workbench() {
     setSaving(true);
     try {
       const res = await approveDoc({ data: {
-        docType: doc.doc_type, household: doc.household, vendor: doc.vendor, receipt: receiptId, cop: doc.cop,
+        docType: doc.doc_type, household: doc.household, vendor: doc.vendor, receipt: receiptId, cop: doc.cop, estimated: doc.cop_estimated,
         items: doc.line_items, transcription: doc.preview, warnings: doc.low_confidence_warnings, image: prepared.current,
       } });
       if (!res.ok) { toast.error(res.error); return; }
@@ -188,8 +189,10 @@ export function Workbench() {
                     {doc.low_confidence_warnings.map((warning) => <span key={warning} className="mt-1 inline-block rounded bg-warning px-2 py-0.5 text-xs font-medium text-warning-foreground">⚠ {warning}</span>)}
                   </Field>
                   <Field label="Total (COP)">
-                    <Input min={0} type="number" value={doc.cop} onChange={(e) => setDoc({ ...doc, cop: +e.target.value })} />
+                    <Input min={0} type="number" value={doc.cop} onChange={(e) => setDoc({ ...doc, cop: +e.target.value, cop_estimated: false })} />
                     <span className="text-xs text-muted-foreground">≈ {formatMoney(doc.cop / USD_TO_COP, "USD")}</span>
+                    {doc.cop_estimated && <span className="mt-1 block rounded bg-warning px-2 py-0.5 text-xs font-medium text-warning-foreground">⚠ No total printed: estimated from reference prices. Edit it if you know the real amount.</span>}
+                    {doc.doc_type !== "CENSUS_FORM" && doc.cop <= 0 && <span className="mt-1 block text-xs text-destructive">Enter the amount paid to approve.</span>}
                   </Field>
                   <Field label="Household">
                     <select value={doc.household} onChange={(e) => setDoc({ ...doc, household: e.target.value })} className="w-full rounded-md border bg-card p-2 text-sm">
@@ -206,7 +209,7 @@ export function Workbench() {
                       </div>
                     </div>
                   )}
-                  <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} className="mt-1" />{real ? "I checked these fields against the photo." : "I reviewed these sample fields and want to update the demo dashboard."}</label>
+                  <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} className="mt-1" />{real ? (doc.cop_estimated ? "This total is an estimate from reference prices. I confirm it, or I corrected it." : "I checked these fields against the photo.") : "I reviewed these sample fields and want to update the demo dashboard."}</label>
                   {real && doc.doc_type === "CENSUS_FORM" && unpricedItems(doc.line_items).length > 0 && <p className="text-xs text-muted-foreground">No reference price for: {unpricedItems(doc.line_items).join(", ")}. These count as $0 in the needs budget.</p>}
                   <Button disabled={!canApprove || saving} className="min-h-12 w-full whitespace-normal bg-success text-primary-foreground hover:bg-success/90" onClick={approve}>{saving ? <Loader2 className="shrink-0 animate-spin" /> : <Check className="shrink-0" />} {real && doc.doc_type === "CENSUS_FORM" ? "Approve & add to needs budget" : "Approve & Publish to Open Books"}</Button>
                 </div>
@@ -215,6 +218,8 @@ export function Workbench() {
           </>
         )}
       </section>
+
+      <TransactionsTable variant="staff" />
 
       <section className="rounded-xl bg-card p-6 shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-3">
