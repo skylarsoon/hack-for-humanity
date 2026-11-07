@@ -70,7 +70,7 @@ function App() {
           </Dialog>
         </div>
         <nav className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4">
-          {(["dash", "field", "build", "ai"] as const).map((v) => (
+          {(["dash", "build", "field", "ai"] as const).map((v) => (
             <button key={v} onClick={() => setView(v)} className={cn("whitespace-nowrap border-b-2 px-4 py-2 text-sm font-medium", view === v ? "border-accent text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>{t[v]}</button>
           ))}
         </nav>
