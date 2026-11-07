@@ -16,7 +16,7 @@ const STATUS = {
 };
 
 export function Dashboard() {
-  const { lang, currency, phase, setPhase, households, expenses, extraSpent, extraAssisted, queue } = useNido();
+  const { lang, currency, phase, setPhase, households, expenses, extraSpent, extraAssisted } = useNido();
   const t = T[lang];
   const [q, setQ] = useState("");
   const hs = useMemo(() => households.filter((h) => (!phase || h.phase === phase) && (h.name + h.vereda).toLowerCase().includes(q.toLowerCase())), [households, phase, q]);
