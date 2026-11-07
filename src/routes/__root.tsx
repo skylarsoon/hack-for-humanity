@@ -12,6 +12,9 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { NidoProvider } from "@/lib/nido-store";
+import { SiteShell } from "@/components/nido/SiteShell";
+import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
   return (
@@ -126,7 +129,10 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      <NidoProvider>
+        <SiteShell><Outlet /></SiteShell>
+        <Toaster richColors position="bottom-right" />
+      </NidoProvider>
     </QueryClientProvider>
   );
 }

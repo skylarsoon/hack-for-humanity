@@ -34,4 +34,7 @@ use the editor.
 - Apply shared household, expense, and impact-total changes in one pure reducer so batched approvals cannot diverge or double-count households.
 - Use TanStack server functions, not Supabase Edge Functions, for future app-internal document analysis; this stack requires server-only credential boundaries.
 - Keep drizzle.config.ts pointed at the generated schema and migration directory so draft migration checks can run without database credentials.
+- Keep the donor dashboard at / and staff tools on separate routes; mount the shared Nido provider in the root so navigation preserves session updates. Route separation alone is not access control.
+- Format public household identifiers through the shared public-households helper rather than displaying names; keep underlying record keys unchanged so existing deliveries and expenses stay linked.
+- Keep donor community photos in CommunityPhotos with bilingual alternative text and CDN asset pointers; show full images without linking identifiable faces to household records.
 - Public household search uses the browser-safe public-household-search helper and searches only ID and vereda, so private names cannot be discovered through filtering.
