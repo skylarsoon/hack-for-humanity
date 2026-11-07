@@ -56,31 +56,37 @@ export const analyzeMingaDocument = createServerFn({ method: "POST" })
     const key = process.env["GEMINI_API_KEY"];
     if (!key) return { doc: null, error: "Gemini key is not configured." };
     const prompt = buildPrompt(data.households.map((h) => `${h.id}|${h.name}`).join("\n"));
-    try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json", "x-goog-api-key": key },
-          signal: AbortSignal.timeout(TIMEOUT_MS),
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: data.mimeType, data: data.base64 } }] }],
-            generationConfig: { temperature: 0, responseMimeType: "application/json", responseSchema: schema },
-          }),
-        },
-      );
-      if (!res.ok) {
-        console.error("Gemini error", res.status, await res.text());
-        return { doc: null, error: res.status === 429 ? "Gemini is busy. Try again in a minute." : `Gemini could not read this photo (${res.status}).` };
+    let busy = false;
+    for (const model of MODELS) {
+      try {
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json", "x-goog-api-key": key },
+            signal: AbortSignal.timeout(TIMEOUT_MS),
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: data.mimeType, data: data.base64 } }] }],
+              generationConfig: { temperature: 0, responseMimeType: "application/json", responseSchema: schema },
+            }),
+          },
+        );
+        if (!res.ok) {
+          console.error("Gemini error", model, res.status, await res.text());
+          // Overloaded, rate-limited or unavailable model: try the next one.
+          if (res.status === 429 || res.status === 404 || res.status >= 500) { busy = true; continue; }
+          return { doc: null, error: `Gemini could not read this photo (${res.status}).` };
+        }
+        const json = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+        const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text) return { doc: null, error: "Gemini returned no result for this photo." };
+        const result = toMingaDoc(JSON.parse(text), data.households);
+        return "doc" in result ? { doc: result.doc, error: null } : { doc: null, error: result.error };
+      } catch (e) {
+        console.error("Gemini fetch failed", model, e);
+        if (e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError")) { busy = true; continue; }
+        return { doc: null, error: "Could not reach Gemini." };
       }
-      const json = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
-      const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!text) return { doc: null, error: "Gemini returned no result for this photo." };
-      const result = toMingaDoc(JSON.parse(text), data.households);
-      return "doc" in result ? { doc: result.doc, error: null } : { doc: null, error: result.error };
-    } catch (e) {
-      console.error(e);
-      if (e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError")) return { doc: null, error: "Gemini took too long. Try again." };
-      return { doc: null, error: "Could not reach Gemini." };
     }
+    return { doc: null, error: busy ? "Gemini is busy right now. Try again in a minute." : "Gemini could not read this photo." };
   });
