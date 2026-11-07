@@ -15,6 +15,13 @@
       "when": 1794086082319,
       "tag": "0001_correct_expense_description",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794086214603,
+      "tag": "0002_enforce_nido_least_privilege",
+      "breakpoints": true
     }
   ]
 }

@@ -54,11 +54,11 @@ describe("Nido database rules", () => {
     expect(r.rows[0]).toEqual({h:8,e:5,l:11,n:19});
   });
   it("converts COP using 3230 for each seeded expense",async()=>{
-    const r=await db.query("SELECT cop FROM expenses ORDER BY date");
+    const r=await db.query<{cop:string}>("SELECT cop FROM expenses ORDER BY date");
     expect(r.rows.map(x=>Number(x.cop))).toEqual([4005200,6783000,5329500,2519400,1388900]);
   });
   it("returns all five categories without duplicating joined amounts",async()=>{
-    const r=await db.query("SELECT * FROM category_totals ORDER BY category");
+    const r=await db.query<{category:string;spent_usd:string;needed_usd:string}>("SELECT * FROM category_totals ORDER BY category");
     expect(r.rows.map(x=>[x.category,Number(x.spent_usd),Number(x.needed_usd)])).toEqual([["roof",1240,52],["water",780,26],["energy",2100,35],["rebuild",1650,360],["heal",430,15]]);
   });
   it("allows anonymous public ID reads but not names or coordinates",async()=>{
