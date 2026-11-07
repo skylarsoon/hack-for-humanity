@@ -21,3 +21,15 @@ describe("Private field household IDs", () => {
     expect(validateFieldHouseholdId(" HH_01 ", ["HH_01"]).error).toBeTruthy();
   });
 });
+import { fieldHouseholdLabel, validateFieldSurname } from "@/lib/field-household-ids";
+describe("field surname labels", () => {
+  it("shows ID with family surname on the mobile list", () => {
+    expect(fieldHouseholdLabel("HH_01", [{ id: "HH_01", name: "Familia Gómez" }], {})).toBe("HH_01 · Gómez");
+  });
+  it("uses the surname typed for a newly added ID", () => {
+    expect(fieldHouseholdLabel("HH_09", [], { HH_09: "Ramírez" })).toBe("HH_09 · Ramírez");
+  });
+  it("rejects phone numbers in the surname field", () => {
+    expect(validateFieldSurname("3001234567").error).toBeTruthy();
+  });
+});
