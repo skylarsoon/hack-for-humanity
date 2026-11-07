@@ -27,7 +27,7 @@ export function Dashboard() {
     { label: t.raised, value: formatMoney(TOTAL_RAISED_USD, currency) },
     { label: t.spent, value: formatMoney(BASE_SPENT_USD + extraSpent, currency) },
     { label: t.assisted, value: `${BASE_ASSISTED + extraAssisted} / ${AFFECTED}` },
-    { label: t.crews, value: `4 · ${queue.length ? "+" : ""}${18 + queue.length} ${lang === "es" ? "voluntarios" : "volunteers"}` },
+    { label: t.crews, value: `4 ${lang === "es" ? "cuadrillas" : "crews"}` },
   ];
 
   return (
