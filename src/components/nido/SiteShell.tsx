@@ -45,7 +45,10 @@ export function SiteShell({ children }: { children: ReactNode }) {
               <Button onClick={() => { navigator.clipboard.writeText(EMBED); toast.success("Snippet copied"); }}>Copy snippet</Button>
             </DialogContent>
           </Dialog>
-          {!isStaff && <Button asChild variant="ghost" size="sm"><Link to="/staff/field">{lang === "es" ? "Equipo" : "Staff"}</Link></Button>}
+          {!isStaff && <>
+            <Button asChild variant="ghost" size="sm"><Link to={pathname === "/impact" ? "/" : "/impact"}>{pathname === "/impact" ? t.dash : t.build}</Link></Button>
+            <Button asChild variant="ghost" size="sm"><Link to="/staff/field">{lang === "es" ? "Equipo" : "Staff"}</Link></Button>
+          </>}
           <Button asChild className="ml-auto shrink-0">
             <a href="https://www.gofundme.com/f/support-pijao-families-after-earthquake-and-fires?cp_src=d" target="_blank" rel="noopener noreferrer">
               <Heart aria-hidden="true" /> {lang === "es" ? "Donar ahora" : "Donate now"}

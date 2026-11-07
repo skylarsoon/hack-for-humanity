@@ -6,7 +6,8 @@ import { AFFECTED, BASE_ASSISTED, BASE_SPENT_USD, PHASES, T, TOTAL_RAISED_USD, f
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { matchesPublicHousehold, publicHouseholdId } from "@/lib/public-households";
+import { publicHouseholdId } from "@/lib/public-households";
+import { matchesPublicHousehold } from "@/lib/public-household-search";
 import { CommunityPhotos } from "./CommunityPhotos";
 
 const PijaoMap = lazy(() => import("./PijaoMap"));
@@ -115,7 +116,7 @@ export function Dashboard() {
             <TabsContent value="hh" className="space-y-3">
               <div className="relative">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t.search} className="pl-9" />
+                <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t.search} aria-label={lang === "es" ? "Buscar ID del hogar o vereda" : "Search household ID or vereda"} className="pl-9" />
               </div>
               <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
                 {hs.map((h) => (
