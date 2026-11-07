@@ -28,3 +28,5 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+- Keep unregistered field IDs as session-only provider options, separate from mapped household records; unknown IDs must remain queued until a coordinator registers a real household, preventing fabricated locations and expenses.
