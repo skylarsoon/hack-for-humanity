@@ -1,20 +1,36 @@
 import { useState } from "react";
-import { Camera, Save, Wifi, WifiOff } from "lucide-react";
+import { Camera, Plus, Save, ShieldCheck, Wifi, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { useNido } from "@/lib/nido-store";
 import { SUPPLIES } from "@/lib/nido-data";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { fieldHouseholdIds, validateFieldHouseholdId } from "@/lib/field-household-ids";
 import { cn } from "@/lib/utils";
 
 export function FieldCrew() {
-  const { households, queue, setQueue, deliver } = useNido();
+  const { households, queue, setQueue, deliver, fieldAddedIds, setFieldAddedIds } = useNido();
   const [hid, setHid] = useState(households[0]?.id ?? "");
+  const [newId, setNewId] = useState("");
+  const [idError, setIdError] = useState<string | null>(null);
+  const ids = fieldHouseholdIds(households, fieldAddedIds);
   const [items, setItems] = useState<string[]>([]);
   const [photo, setPhoto] = useState(false);
 
   const toggle = (k: string) => setItems((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]));
 
+  function addId() {
+    const result = validateFieldHouseholdId(newId, ids);
+    if (result.error || !result.id) { setIdError(result.error ?? "ID inválido"); return; }
+    setFieldAddedIds((previous) => [...previous, result.id]);
+    setHid(result.id);
+    setNewId("");
+    setIdError(null);
+    toast.success("ID de hogar añadido a las opciones de esta sesión");
+  }
+
   function save() {
+    if (!ids.includes(hid)) { toast.error("Seleccione un ID de hogar"); return; }
     if (!items.length) { toast.error("Toque al menos un ícono"); return; }
     setQueue((q) => [...q, { id: `q${Date.now()}`, householdId: hid, items, photo, at: new Date().toTimeString().slice(0, 5) }]);
     setItems([]); setPhoto(false);
@@ -23,13 +39,16 @@ export function FieldCrew() {
 
   function sync() {
     if (!queue.length) { toast("Nada pendiente"); return; }
-    queue.forEach((u) => {
+    const ready = queue.filter((u) => households.some((h) => h.id === u.householdId));
+    const pending = queue.filter((u) => !households.some((h) => h.id === u.householdId));
+    ready.forEach((u) => {
       const real = u.items.filter((i) => i !== "Alerta Derrumbe");
       const usd = real.reduce((s, i) => s + (SUPPLIES.find((x) => x.key === i)?.usd ?? 0), 0);
       if (real.length) deliver(u.householdId, real, usd, "Entrega de campo (minga)", `CAMPO-${u.id.slice(-4)}`);
     });
-    toast.success(`${queue.length} actualizaciones sincronizadas al tablero`);
-    setQueue([]);
+    if (ready.length) toast.success(`${ready.length} actualizaciones sincronizadas al tablero`);
+    if (pending.length) toast.info(`${pending.length} pendientes: el coordinador debe registrar los nuevos IDs antes de sincronizar.`);
+    setQueue(pending);
   }
 
   return (
@@ -39,12 +58,22 @@ export function FieldCrew() {
         <WifiOff className="mt-0.5 h-4 w-4 shrink-0" />
         <p><b>OFFLINE MODE READY:</b> {queue.length} Household Updates Saved Locally — Auto-syncs when signal returns</p>
       </div>
-      <p className="mt-3 text-center text-xs text-muted-foreground">En español, un toque por familia</p>
+      <p className="mt-3 flex items-center justify-center gap-1 text-xs text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5" /> Identificación por código, sin nombres</p>
 
-      <label className="mt-3 block text-sm font-semibold">Familia</label>
-      <select value={hid} onChange={(e) => setHid(e.target.value)} className="mt-1 w-full rounded-lg border bg-card p-3 text-base">
-        {households.map((h) => <option key={h.id} value={h.id}>{h.name} — {h.vereda}</option>)}
+      <label htmlFor="field-household-id" className="mt-3 block text-sm font-semibold">ID del hogar</label>
+      <select id="field-household-id" value={hid} onChange={(e) => setHid(e.target.value)} className="mt-1 w-full rounded-lg border bg-card p-3 text-base">
+        {ids.map((id) => <option key={id} value={id}>{id}</option>)}
       </select>
+
+      <section className="mt-4 border-y py-3">
+        <label htmlFor="new-household-id" className="block text-sm font-semibold">¿El ID del hogar no está listado?</label>
+        <form className="mt-2 flex gap-2" onSubmit={(event) => { event.preventDefault(); addId(); }}>
+          <Input id="new-household-id" value={newId} onChange={(event) => { setNewId(event.target.value); setIdError(null); }} placeholder="fam_09" aria-invalid={Boolean(idError)} aria-describedby={idError ? "household-id-error" : "household-id-note"} autoComplete="off" spellCheck={false} maxLength={12} className="min-w-0 flex-1" />
+          <Button type="submit" variant="outline" aria-label="Añadir ID de hogar"><Plus className="h-4 w-4" /> Añadir</Button>
+        </form>
+        {idError && <p id="household-id-error" role="alert" className="mt-2 text-xs text-destructive">{idError}</p>}
+        <p id="household-id-note" className="mt-2 text-xs text-muted-foreground">Solo códigos como fam_09; no nombres, teléfonos ni direcciones. Los IDs añadidos duran esta sesión.</p>
+      </section>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
         {SUPPLIES.map((s) => (
@@ -64,7 +93,7 @@ export function FieldCrew() {
 
       {queue.length > 0 && (
         <ul className="mt-4 space-y-1 text-xs text-muted-foreground">
-          {queue.map((u) => <li key={u.id}>⏳ {u.at} · {households.find((h) => h.id === u.householdId)?.name} · {u.items.join(", ")}{u.photo ? " · 📷" : ""}</li>)}
+          {queue.map((u) => <li key={u.id} className="break-words">⏳ {u.at} · {u.householdId} · {u.items.join(", ")}{u.photo ? " · 📷" : ""}</li>)}
         </ul>
       )}
     </div>
