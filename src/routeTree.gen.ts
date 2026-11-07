@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as StaffCoordinatorRouteImport } from './routes/staff.coordinator'
+import { Route as StaffDashboardRouteImport } from './routes/staff.dashboard'
 import { Route as StaffFieldRouteImport } from './routes/staff.field'
 
 const IndexRoute = IndexRouteImport.update({
@@ -23,6 +24,11 @@ const StaffCoordinatorRoute = StaffCoordinatorRouteImport.update({
   path: '/staff/coordinator',
   getParentRoute: () => rootRouteImport,
 } as any)
+const StaffDashboardRoute = StaffDashboardRouteImport.update({
+  id: '/staff/dashboard',
+  path: '/staff/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const StaffFieldRoute = StaffFieldRouteImport.update({
   id: '/staff/field',
   path: '/staff/field',
@@ -32,30 +38,39 @@ const StaffFieldRoute = StaffFieldRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/staff/coordinator': typeof StaffCoordinatorRoute
+  '/staff/dashboard': typeof StaffDashboardRoute
   '/staff/field': typeof StaffFieldRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/staff/coordinator': typeof StaffCoordinatorRoute
+  '/staff/dashboard': typeof StaffDashboardRoute
   '/staff/field': typeof StaffFieldRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/staff/coordinator': typeof StaffCoordinatorRoute
+  '/staff/dashboard': typeof StaffDashboardRoute
   '/staff/field': typeof StaffFieldRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/staff/coordinator' | '/staff/field'
+  fullPaths: '/' | '/staff/coordinator' | '/staff/dashboard' | '/staff/field'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/staff/coordinator' | '/staff/field'
-  id: '__root__' | '/' | '/staff/coordinator' | '/staff/field'
+  to: '/' | '/staff/coordinator' | '/staff/dashboard' | '/staff/field'
+  id:
+    | '__root__'
+    | '/'
+    | '/staff/coordinator'
+    | '/staff/dashboard'
+    | '/staff/field'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   StaffCoordinatorRoute: typeof StaffCoordinatorRoute
+  StaffDashboardRoute: typeof StaffDashboardRoute
   StaffFieldRoute: typeof StaffFieldRoute
 }
 
@@ -75,6 +90,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StaffCoordinatorRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/staff/dashboard': {
+      id: '/staff/dashboard'
+      path: '/staff/dashboard'
+      fullPath: '/staff/dashboard'
+      preLoaderRoute: typeof StaffDashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/staff/field': {
       id: '/staff/field'
       path: '/staff/field'
@@ -88,6 +110,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   StaffCoordinatorRoute: StaffCoordinatorRoute,
+  StaffDashboardRoute: StaffDashboardRoute,
   StaffFieldRoute: StaffFieldRoute,
 }
 export const routeTree = rootRouteImport

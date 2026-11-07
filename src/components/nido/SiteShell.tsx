@@ -57,6 +57,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
             <Button asChild variant="ghost"><Link to="/">{lang === "es" ? "Tablero público" : "Donor dashboard"}</Link></Button>
             <Button asChild variant={pathname === "/staff/field" ? "secondary" : "ghost"}><Link to="/staff/field">{t.field}</Link></Button>
             <Button asChild variant={pathname === "/staff/coordinator" ? "secondary" : "ghost"}><Link to="/staff/coordinator">{t.ai}</Link></Button>
+            <Button asChild variant={pathname === "/staff/dashboard" ? "secondary" : "ghost"}><Link to="/staff/dashboard">{lang === "es" ? "Panel del coordinador" : "Coordinator dashboard"}</Link></Button>
           </nav>
         )}
       </header>

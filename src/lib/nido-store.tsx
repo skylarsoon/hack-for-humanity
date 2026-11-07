@@ -7,7 +7,7 @@ import { deliveryReducer, initialDeliveryState } from "./nido-delivery";
 
 const seedStatus = (id: string) => seedHouseholds().find((h) => h.id === id)?.status;
 
-export interface QueuedUpdate { id: string; householdId: string; items: string[]; photo: boolean; at: string; survey?: Record<string, string> }
+export interface QueuedUpdate { id: string; householdId: string; items: string[]; photo: boolean; at: string; survey?: Record<string, string>; /** Sample entry: syncs locally only, never to the database. */ demo?: boolean }
 
 function useNidoState() {
   const [lang, setLang] = useState<Lang>("es");
@@ -53,8 +53,8 @@ function useNidoState() {
   }, [ledger, sessionHouseholds, sessionExpenses, sessionSpent, sessionAssisted]);
   const [fieldAddedIds, setFieldAddedIds] = useState<string[]>([]);
   const [queue, setQueue] = useState<QueuedUpdate[]>(() => [
-    { id: "q1", householdId: "HH_03", items: ["Tejas de Zinc"], photo: true, at: "07:42" },
-    { id: "q2", householdId: "HH_05", items: ["Lámpara Solar"], photo: false, at: "08:15" },
+    { id: "q1", householdId: "HH_03", items: ["Tejas de Zinc"], photo: true, at: "07:42", demo: true },
+    { id: "q2", householdId: "HH_05", items: ["Lámpara Solar"], photo: false, at: "08:15", demo: true },
   ]);
 
   /** Mark household delivered with items and record an expense. */
