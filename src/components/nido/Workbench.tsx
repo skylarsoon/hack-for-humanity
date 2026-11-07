@@ -1,120 +1,188 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy, FileText, Loader2, Upload } from "lucide-react";
+import { Copy, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
 import { useNido } from "@/lib/nido-store";
 import { AFFECTED, BASE_ASSISTED, BASE_SPENT_USD, TOTAL_RAISED_USD, USD_TO_COP, formatMoney } from "@/lib/nido-data";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { useServerFn } from "@tanstack/react-start";
 import { analyzeMingaDocument } from "@/lib/minga-analyze.functions";
 import { approveMingaDocument } from "@/lib/minga-approve.functions";
-import { CATEGORIES, type ImpactCategory } from "@/lib/donor-impact";
-import { unpricedItems } from "@/lib/minga-ledger";
-import { TransactionsTable } from "./TransactionsTable";
 import { prepareImage } from "@/lib/image-prep";
-// Shared fixtures retain the HH household IDs used by the map, ledger and field queue.
-import { SAMPLE_DELAY_MS, sampleDocument, supportedPhoto, validApproval, type MingaDoc, type SampleKind } from "@/lib/minga-documents";
+import { SAMPLE_DELAY_MS, sampleDocument, type MingaDoc, type SampleKind } from "@/lib/minga-documents";
+import { bulkTargets, fileKey, isApprovable, isBusyError, planBatch, type QueueItem } from "@/lib/minga-queue";
+import { backoffMs, createPool, withRetry } from "@/lib/run-pool";
+import { TransactionsTable } from "./TransactionsTable";
+import { BatchQueue } from "./BatchQueue";
+import { DocReviewPanel } from "./DocReviewPanel";
 
-const STEPS = ["1. Document classification", "2. Handwriting & COP/USD review", "3. Household match review"];
+/** Turns a thrown error into something a coordinator can act on. */
+function describeFailure(e: unknown) {
+  const message = e instanceof Error ? e.message : String(e);
+  if (/unauthori[sz]ed|authorization|bearer|token/i.test(message)) return "Your coordinator session has expired. Sign out and sign in again.";
+  if (/missing supabase/i.test(message)) return "The server is missing its Supabase settings. Check .env.";
+  if (/failed to fetch|networkerror|load failed/i.test(message)) return "Could not reach the server. Check your connection and that the dev server is running.";
+  return `Analysis failed: ${message.slice(0, 140)}`;
+}
+
+type Prepared = { mimeType: "image/png" | "image/jpeg"; base64: string };
+// A few photos at a time, with a pause between starts, so a big batch cannot flood the AI provider.
+const CONCURRENT_READS = 3;
+const READ_GAP_MS = 1500;
+const BUSY_RETRIES = 3;
 
 export function Workbench() {
   const { households, deliver, currency, extraSpent, extraAssisted } = useNido();
-  const [doc, setDoc] = useState<MingaDoc | null>(null);
-  const [img, setImg] = useState<string | null>(null);
-  const [step, setStep] = useState(0);
-  const [busy, setBusy] = useState(false);
-  const [fallback, setFallback] = useState(false);
-  const [acknowledged, setAcknowledged] = useState(false);
-  const [uploadName, setUploadName] = useState("");
-  const pending = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const previewUrl = useRef<string | null>(null);
-  const [drag, setDrag] = useState(false);
-  const [dispatch, setDispatch] = useState<{ es: string; en: string } | null>(null);
-  const [real, setReal] = useState(false);
   const analyze = useServerFn(analyzeMingaDocument);
   const approveDoc = useServerFn(approveMingaDocument);
-  const prepared = useRef<{ mimeType: "image/png" | "image/jpeg"; base64: string } | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [receiptId, setReceiptId] = useState("");
-  const run = useRef(0);
-  const lastFile = useRef<File | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [items, setItems] = useState<QueueItem[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [drag, setDrag] = useState(false);
+  const [dispatch, setDispatch] = useState<{ es: string; en: string } | null>(null);
+  // Large or non-serializable data stays out of React state.
+  const pool = useRef(createPool(CONCURRENT_READS, { gapMs: READ_GAP_MS }));
+  const files = useRef(new Map<string, File>());
+  const prepared = useRef(new Map<string, Prepared>());
+  const keys = useRef(new Map<string, string>());
+  const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
+  const latest = useRef({ items, households });
+  latest.current = { items, households };
+  const householdIds = households.map((h) => h.id);
 
   useEffect(() => () => {
-    run.current++;
-    pending.current.forEach(clearTimeout);
-    if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
+    pool.current.clear();
+    timers.current.forEach(clearTimeout);
+    latest.current.items.forEach((i) => i.previewUrl && URL.revokeObjectURL(i.previewUrl));
   }, []);
 
-  function load(kind: SampleKind, image: string | null = null, name = "") {
-    run.current++; setError(null);
-    pending.current.forEach(clearTimeout);
-    if (previewUrl.current && previewUrl.current !== image) URL.revokeObjectURL(previewUrl.current);
-    previewUrl.current = image;
-    setImg(image); setUploadName(name); setDoc(null); setStep(0);
-    setBusy(true); setFallback(Boolean(image)); setAcknowledged(false); setReal(false);
-    pending.current = [
-      setTimeout(() => setStep(1), SAMPLE_DELAY_MS / 3),
-      setTimeout(() => setStep(2), SAMPLE_DELAY_MS * 2 / 3),
-      setTimeout(() => { setDoc(sampleDocument(kind)); setStep(3); setBusy(false); }, SAMPLE_DELAY_MS),
-    ];
-  }
-  async function onFile(f?: File) {
-    if (!f) return;
-    if (!supportedPhoto(f.type)) { toast.error("Choose a PNG or JPG photo."); return; }
-    if (f.size > 10_000_000) { toast.error("Photo is too large (max 10 MB)."); return; }
-    const id = ++run.current;
-    lastFile.current = f;
-    pending.current.forEach(clearTimeout);
-    if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
-    const url = URL.createObjectURL(f);
-    previewUrl.current = url;
-    setImg(url); setUploadName(f.name); setDoc(null); setStep(0); setBusy(true); setFallback(false); setAcknowledged(false); setReal(false); setError(null);
-    pending.current = [setTimeout(() => setStep(1), 1500), setTimeout(() => setStep(2), 3500)];
-    try {
-      const { mimeType, base64 } = await prepareImage(f);
-      prepared.current = { mimeType, base64 };
-      const res = await analyze({ data: { mimeType, base64, households: households.map((h) => ({ id: h.id, name: h.name })) } });
-      if (id !== run.current) return;
-      pending.current.forEach(clearTimeout);
-      if (res.doc) { setDoc(res.doc); setReal(true); setStep(3); setReceiptId(`AI-${crypto.randomUUID()}`); }
-      else { setError(res.error ?? "Analysis failed."); toast.error(res.error ?? "Analysis failed."); }
-    } catch {
-      if (id !== run.current) return;
-      pending.current.forEach(clearTimeout);
-      setError("Analysis failed."); toast.error("Analysis failed.");
-    } finally { if (id === run.current) setBusy(false); }
-  }
-  const match = doc && households.find((h) => h.id === doc.household);
-  const canApprove = doc && validApproval(doc, households.map((h) => h.id)) && acknowledged;
+  const patch = (id: string, change: Partial<QueueItem>) => setItems((cur) => cur.map((i) => (i.id === id ? { ...i, ...change } : i)));
+  const setDoc = (id: string, doc: MingaDoc) => patch(id, { doc });
 
-  function finishApproval(message: string) {
-    toast.success(message);
-    setDoc(null); setImg(null); setError(null); prepared.current = null;
-    if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
-    previewUrl.current = null;
+  function release(item: QueueItem) {
+    if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+    files.current.delete(item.id); prepared.current.delete(item.id);
+    keys.current.delete(item.id);
   }
 
-  async function approve() {
-    if (!doc || !canApprove || saving) return;
-    if (!real) {
+  function analyzeJob(id: string) {
+    pool.current.add(async (generation) => {
+      const file = files.current.get(id);
+      if (!file) return;
+      patch(id, { stage: "analyzing", error: null, note: null });
+      try {
+        const image = await prepareImage(file);
+        prepared.current.set(id, image);
+        const res = await withRetry(
+          () => analyze({ data: { ...image, households: latest.current.households.map((h) => ({ id: h.id, name: h.name })) } }),
+          (r) => !r.doc && isBusyError(r.error),
+          {
+            retries: BUSY_RETRIES,
+            delayMs: backoffMs,
+            onRetry: (_attempt, delay) => {
+              pool.current.pause(delay);
+              patch(id, { note: `Gemini is busy. Retrying in ${Math.round(delay / 1000)}s…` });
+            },
+          },
+        );
+        if (pool.current.isStale(generation)) return;
+        if (res.doc) patch(id, { stage: "done", doc: res.doc, acknowledged: false, note: null });
+        else patch(id, { stage: "error", error: res.error ?? "Analysis failed.", note: null });
+      } catch (e) {
+        console.error("Document analysis failed", e);
+        if (!pool.current.isStale(generation)) patch(id, { stage: "error", error: describeFailure(e), note: null });
+      }
+    });
+  }
+
+  function onFiles(list: FileList | File[] | null | undefined) {
+    const dropped = Array.from(list ?? []);
+    if (!dropped.length) return;
+    const existing = new Set(keys.current.values());
+    const { accepted, rejected } = planBatch(dropped, existing, latest.current.items.length);
+    if (rejected.length) toast.error(`Skipped ${rejected.length}: ${rejected.slice(0, 3).map((r) => `${r.name} (${r.reason})`).join("; ")}${rejected.length > 3 ? "…" : ""}`);
+    if (!accepted.length) return;
+    const added: QueueItem[] = accepted.map((f) => {
+      const id = crypto.randomUUID();
+      files.current.set(id, f); keys.current.set(id, fileKey(f));
+      return { id, fileName: f.name, previewUrl: URL.createObjectURL(f), stage: "queued", doc: null, error: null, note: null, receiptId: `AI-${crypto.randomUUID()}`, acknowledged: false, real: true };
+    });
+    setItems((cur) => [...cur, ...added]);
+    setSelectedId((cur) => cur ?? added[0]?.id ?? null);
+    added.forEach((i) => analyzeJob(i.id));
+  }
+
+  function loadSample(kind: SampleKind) {
+    const id = crypto.randomUUID();
+    const label = { census: "Sample paper census form", acta: "Sample signed acta", factura: "Sample hardware factura" }[kind];
+    setItems((cur) => [...cur, { id, fileName: label, previewUrl: null, stage: "analyzing", doc: null, error: null, note: null, receiptId: `SAMPLE-${crypto.randomUUID()}`, acknowledged: false, real: false }]);
+    setSelectedId(id);
+    const t = setTimeout(() => { timers.current.delete(t); patch(id, { stage: "done", doc: sampleDocument(kind) }); }, SAMPLE_DELAY_MS);
+    timers.current.add(t);
+  }
+
+  function retry(id: string) { patch(id, { stage: "queued", error: null, note: null }); analyzeJob(id); }
+
+  function remove(id: string) {
+    const item = latest.current.items.find((i) => i.id === id);
+    if (item) release(item);
+    setItems((cur) => cur.filter((i) => i.id !== id));
+    setSelectedId((cur) => (cur === id ? null : cur));
+  }
+
+  function clearFinished() {
+    latest.current.items.filter((i) => i.stage === "approved").forEach(release);
+    setItems((cur) => cur.filter((i) => i.stage !== "approved"));
+    setSelectedId((cur) => (latest.current.items.find((i) => i.id === cur)?.stage === "approved" ? null : cur));
+  }
+
+  /** Saves one row. Returns whether it worked; the row records its own error so a failure never blocks the rest. */
+  async function saveItem(item: QueueItem): Promise<boolean> {
+    const doc = item.doc;
+    if (!doc) return false;
+    const match = latest.current.households.find((h) => h.id === doc.household);
+    patch(item.id, { stage: "saving", error: null });
+    if (!item.real) {
       // Sample documents stay in this browser session and are never written to the database.
-      deliver(doc.household, doc.line_items.map((l) => l.item), Math.round(doc.cop / USD_TO_COP), doc.vendor, `SAMPLE-${crypto.randomUUID()}`);
-      finishApproval(`Sample approved: ${match?.name} → delivered; ledger updated`);
-      return;
+      deliver(doc.household, doc.line_items.map((l) => l.item), Math.round(doc.cop / USD_TO_COP), doc.vendor, item.receiptId);
+      patch(item.id, { stage: "approved" });
+      return true;
     }
-    setSaving(true);
     try {
       const res = await approveDoc({ data: {
-        docType: doc.doc_type, household: doc.household, vendor: doc.vendor, receipt: receiptId, cop: doc.cop, estimated: doc.cop_estimated,
-        items: doc.line_items, transcription: doc.preview, warnings: doc.low_confidence_warnings, image: prepared.current,
+        docType: doc.doc_type, household: doc.household, vendor: doc.vendor, receipt: item.receiptId, cop: doc.cop, estimated: doc.cop_estimated,
+        items: doc.line_items, transcription: doc.preview, warnings: doc.low_confidence_warnings, image: prepared.current.get(item.id) ?? null,
       } });
-      if (!res.ok) { toast.error(res.error); return; }
-      finishApproval(`${match?.name ?? doc.household}: ${res.message}${res.imageSaved ? "" : " (photo not stored)"}`);
+      if (!res.ok) { patch(item.id, { stage: "done", error: res.error }); return false; }
+      prepared.current.delete(item.id);
+      patch(item.id, { stage: "approved" });
+      toast.success(`${match?.name ?? doc.household}: ${res.message}${res.imageSaved ? "" : " (photo not stored)"}`);
+      return true;
     } catch {
-      toast.error("Could not save. Check your connection and try again.");
-    } finally { setSaving(false); }
+      patch(item.id, { stage: "done", error: "Could not save. Check your connection and try again." });
+      return false;
+    }
+  }
+
+  async function approveSelected() {
+    const item = latest.current.items.find((i) => i.id === selectedId);
+    if (!item || !isApprovable(item, householdIds)) return;
+    if (await saveItem(item)) {
+      const next = latest.current.items.find((i) => i.id !== item.id && i.stage === "done");
+      setSelectedId(next?.id ?? item.id);
+    } else toast.error("Could not approve this row. See the message in the queue.");
+  }
+
+  async function approveReady() {
+    setBulkBusy(true);
+    let ok = 0, failed = 0;
+    for (const item of bulkTargets(latest.current.items, latest.current.households.map((h) => h.id))) {
+      if (await saveItem(item)) ok++;
+      else failed++;
+    }
+    setBulkBusy(false);
+    if (failed) toast.error(`${ok} approved, ${failed} failed. Failed rows stay in the queue with the reason.`);
+    else if (ok) toast.success(`${ok} approved and published.`);
   }
 
   function genDispatch() {
@@ -126,97 +194,46 @@ export function Workbench() {
     });
   }
 
+  const selected = items.find((i) => i.id === selectedId) ?? null;
+
   return (
     <div className="space-y-8">
       <section className="rounded-xl bg-card p-6 shadow-card">
         <h2 className="text-2xl font-semibold">Unified Smart Minga Dropzone</h2>
-        <p role="status" className="mt-3 rounded-lg border border-warning bg-warning/15 p-3 text-sm">Uploaded photos are read by Gemini · Sample buttons use demo data. Approvals update this session only.</p>
+        <p role="status" className="mt-3 rounded-lg border border-warning bg-warning/15 p-3 text-sm">Uploaded photos are read by AI three at a time. Review each result before it goes public. Sample buttons use demo data. Review each result before it goes public.</p>
         <label
           onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
           onDragLeave={() => setDrag(false)}
-          onDrop={(e) => { e.preventDefault(); setDrag(false); onFile(e.dataTransfer.files[0]); }}
+          onDrop={(e) => { e.preventDefault(); setDrag(false); onFiles(e.dataTransfer.files); }}
           className={cn("mt-4 flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed p-8 text-center transition", drag ? "border-accent bg-accent/10" : "hover:border-primary")}
         >
           <Upload className="h-8 w-8 text-primary" />
-          <span className="font-medium">Drop a census form, acta or factura photo</span>
-          <input aria-label="Upload document photo" type="file" accept="image/png,image/jpeg" className="hidden" onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ""; }} />
+          <span className="font-medium">Drop census forms, actas or factura photos (up to 30)</span>
+          <input aria-label="Upload document photos" type="file" multiple accept="image/png,image/jpeg" className="hidden" onChange={(e) => { onFiles(e.target.files); e.target.value = ""; }} />
         </label>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => load("census")}>Load Sample Paper Census Form</Button>
-          <Button variant="outline" onClick={() => load("acta")}>Load Signed Acta Receipt</Button>
-          <Button variant="outline" onClick={() => load("factura")}>Load Hardware Store Factura</Button>
+          <Button variant="outline" onClick={() => loadSample("census")}>Load Sample Paper Census Form</Button>
+          <Button variant="outline" onClick={() => loadSample("acta")}>Load Signed Acta Receipt</Button>
+          <Button variant="outline" onClick={() => loadSample("factura")}>Load Hardware Store Factura</Button>
         </div>
 
-        {error && img && !busy && (
-          <div role="alert" className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-destructive p-3 text-sm text-destructive">
-            <span className="flex-1">{error} Your photo is still loaded.</span>
-            <Button size="sm" variant="outline" onClick={() => onFile(lastFile.current ?? undefined)}>Retry</Button>
+        <BatchQueue items={items} householdIds={householdIds} selectedId={selectedId} bulkBusy={bulkBusy} onSelect={setSelectedId} onRetry={retry} onRemove={remove} onClearFinished={clearFinished} onApproveReady={approveReady} />
+
+        {selected?.error && selected.stage !== "error" && <p role="alert" className="mt-4 rounded-lg border border-destructive p-3 text-sm text-destructive">{selected.error}</p>}
+        {selected?.doc && (selected.stage === "done" || selected.stage === "saving") && (
+          <div className="mt-6">
+            <DocReviewPanel
+              item={{ ...selected, doc: selected.doc }}
+              households={households}
+              canApprove={isApprovable(selected, householdIds) && !bulkBusy}
+              saving={selected.stage === "saving"}
+              onChange={(doc) => setDoc(selected.id, doc)}
+              onAcknowledge={(acknowledged) => patch(selected.id, { acknowledged })}
+              onApprove={approveSelected}
+            />
           </div>
         )}
-
-        {(doc || busy) && (
-          <>
-            <p className="mt-6 text-xs text-muted-foreground">Progress steps are estimates while the photo is being read.</p>
-            <div className="mt-2 grid gap-2 md:grid-cols-3">
-              {STEPS.map((s, i) => (
-                <div key={s} className={cn("flex items-center gap-2 rounded-lg border p-3 text-sm", step > i ? "border-primary bg-primary/5" : step === i ? "border-accent" : "opacity-50")}>
-                  {step > i ? <Check className="h-4 w-4 text-primary" /> : step === i ? <Loader2 className="h-4 w-4 animate-spin text-accent" /> : <span className="h-4 w-4" />}{s}
-                </div>
-              ))}
-            </div>
-
-            {doc && step >= 3 && (
-              <div className="mt-6 grid gap-6 md:grid-cols-2">
-                <div className="rounded-xl border bg-muted p-4">
-                  <p className="mb-2 flex items-center gap-2 break-all text-sm font-semibold"><FileText className="h-4 w-4 shrink-0" />{uploadName || doc.title}</p>
-                  {img ? <><img src={img} alt="Uploaded document" className="max-h-80 w-full rounded object-contain" />{real && doc.preview && <pre className="mt-3 whitespace-pre-wrap rounded bg-card p-3 text-sm">{doc.preview}</pre>}</> : <pre className="whitespace-pre-wrap rounded bg-card p-4 font-display text-lg italic">{doc.preview}</pre>}
-                  {fallback && <p role="alert" className="mt-3 text-sm text-destructive">This photo has not been analyzed. The fields are sample census data, not extracted from your photo.</p>}
-                </div>
-                <div className="space-y-3">
-                  <p className="text-xs font-semibold text-muted-foreground">{real ? "GEMINI EXTRACTION" : "SAMPLE"} · {doc.doc_type.replaceAll("_", " ")}</p>
-                  <Field label={doc.line_items.length > 1 ? "Items" : "Item"}>
-                    <div className="space-y-2">
-                      {doc.line_items.map((l, i) => (
-                        <div key={i} className="flex gap-2">
-                          <Input aria-label={`Item ${i + 1}`} value={l.item} onChange={(e) => setDoc({ ...doc, line_items: doc.line_items.map((x, j) => j === i ? { ...x, item: e.target.value } : x) })} />
-                          <select aria-label={`Category ${i + 1}`} value={l.category} onChange={(e) => setDoc({ ...doc, line_items: doc.line_items.map((x, j) => j === i ? { ...x, category: e.target.value as ImpactCategory } : x) })} className="w-36 shrink-0 rounded-md border bg-card p-2 text-sm">
-                            {(Object.keys(CATEGORIES) as ImpactCategory[]).map((k) => <option key={k} value={k}>{CATEGORIES[k].icon} {CATEGORIES[k].en}</option>)}
-                          </select>
-                          <Input aria-label={`Quantity ${i + 1}`} min={1} step={1} type="number" value={l.qty} onChange={(e) => setDoc({ ...doc, line_items: doc.line_items.map((x, j) => j === i ? { ...x, qty: +e.target.value } : x) })} className={cn("w-24 shrink-0", doc.low_confidence_warnings.length ? "border-warning bg-warning/15" : "")} />
-                        </div>
-                      ))}
-                    </div>
-                    {doc.low_confidence_warnings.map((warning) => <span key={warning} className="mt-1 inline-block rounded bg-warning px-2 py-0.5 text-xs font-medium text-warning-foreground">⚠ {warning}</span>)}
-                  </Field>
-                  <Field label="Total (COP)">
-                    <Input min={0} type="number" value={doc.cop} onChange={(e) => setDoc({ ...doc, cop: +e.target.value, cop_estimated: false })} />
-                    <span className="text-xs text-muted-foreground">≈ {formatMoney(doc.cop / USD_TO_COP, "USD")}</span>
-                    {doc.cop_estimated && <span className="mt-1 block rounded bg-warning px-2 py-0.5 text-xs font-medium text-warning-foreground">⚠ No total printed: estimated from reference prices. Edit it if you know the real amount.</span>}
-                    {doc.doc_type !== "CENSUS_FORM" && doc.cop <= 0 && <span className="mt-1 block text-xs text-destructive">Enter the amount paid to approve.</span>}
-                  </Field>
-                  <Field label="Household">
-                    <select value={doc.household} onChange={(e) => setDoc({ ...doc, household: e.target.value })} className="w-full rounded-md border bg-card p-2 text-sm">
-                      <option value="">Select a household</option>
-                      {households.map((h) => <option key={h.id} value={h.id}>{h.name} ({h.id})</option>)}
-                    </select>
-                  </Field>
-                  {doc.entity_resolution?.is_potential_duplicate && (
-                    <div className="rounded-lg border border-accent bg-accent/10 p-3 text-sm">
-                      <b>{Math.round(doc.entity_resolution.similarity_score * 100)}% Match:</b> {doc.entity_resolution.explanation}
-                      <div className="mt-2 flex gap-2">
-                        <Button size="sm" variant={doc.household === doc.entity_resolution.matched_family_id ? "default" : "outline"} onClick={() => { const resolution = doc.entity_resolution; if (resolution) setDoc({ ...doc, household: resolution.matched_family_id }); }}>Merge</Button>
-                        <Button size="sm" variant="outline" onClick={() => setDoc({ ...doc, household: "", entity_resolution: null })}>Choose another household</Button>
-                      </div>
-                    </div>
-                  )}
-                  <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} className="mt-1" />{real ? (doc.cop_estimated ? "This total is an estimate from reference prices. I confirm it, or I corrected it." : "I checked these fields against the photo.") : "I reviewed these sample fields and want to update the demo dashboard."}</label>
-                  {real && doc.doc_type === "CENSUS_FORM" && unpricedItems(doc.line_items).length > 0 && <p className="text-xs text-muted-foreground">No reference price for: {unpricedItems(doc.line_items).join(", ")}. These count as $0 in the needs budget.</p>}
-                  <Button disabled={!canApprove || saving} className="min-h-12 w-full whitespace-normal bg-success text-primary-foreground hover:bg-success/90" onClick={approve}>{saving ? <Loader2 className="shrink-0 animate-spin" /> : <Check className="shrink-0" />} {real && doc.doc_type === "CENSUS_FORM" ? "Approve & add to needs budget" : "Approve & Publish to Open Books"}</Button>
-                </div>
-              </div>
-            )}
-          </>
-        )}
+        {selected?.stage === "approved" && <p className="mt-4 text-sm text-primary">This document was saved. Pick another row from the queue.</p>}
       </section>
 
       <TransactionsTable variant="staff" />

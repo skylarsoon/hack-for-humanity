@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { syncFieldUpdates } from "@/lib/field-sync.functions";
 import { buildSurvey } from "@/lib/field-surveys";
 import { ArrowLeft, Camera, ClipboardList, Plus, Save, ShieldCheck, Wifi, WifiOff } from "lucide-react";
 import { toast } from "sonner";
@@ -10,7 +12,9 @@ import { fieldHouseholdIds, fieldHouseholdLabel, validateFieldHouseholdId, valid
 import { cn } from "@/lib/utils";
 
 export function FieldCrew() {
-  const { households, queue, setQueue, deliver, fieldAddedIds, setFieldAddedIds } = useNido();
+  const { households, queue, setQueue, deliver, refreshLedger, fieldAddedIds, setFieldAddedIds } = useNido();
+  const syncFn = useServerFn(syncFieldUpdates);
+  const [syncing, setSyncing] = useState(false);
   const [hid, setHid] = useState(households[0]?.id ?? "");
   const [newId, setNewId] = useState("");
   const [idError, setIdError] = useState<string | null>(null);
@@ -48,7 +52,7 @@ export function FieldCrew() {
   }
 
   function save() {
-    setQueue((q) => [...q, { id: `q${Date.now()}`, householdId: hid, items, photo, survey: answers, at: new Date().toTimeString().slice(0, 5) }]);
+    setQueue((q) => [...q, { id: crypto.randomUUID(), householdId: hid, items, photo, survey: answers, at: new Date().toTimeString().slice(0, 5) }]);
     setItems([]); setPhoto(false); setSurveying(false); setAnswers({});
     toast.success("Encuesta guardada sin señal ✔");
   }
@@ -88,18 +92,41 @@ export function FieldCrew() {
     );
   }
 
-  function sync() {
+  async function sync() {
+    if (syncing) return;
     if (!queue.length) { toast("Nada pendiente"); return; }
-    const ready = queue.filter((u) => households.some((h) => h.id === u.householdId));
-    const pending = queue.filter((u) => !households.some((h) => h.id === u.householdId));
-    ready.forEach((u) => {
+    const registered = queue.filter((u) => households.some((h) => h.id === u.householdId));
+    const pending = queue.length - registered.length;
+    const done = new Set<string>();
+
+    // Sample entries keep the old local-only behavior and never touch the database.
+    for (const u of registered.filter((x) => x.demo)) {
       const real = u.items.filter((i) => i !== "Alerta Derrumbe");
       const usd = real.reduce((s, i) => s + (SUPPLIES.find((x) => x.key === i)?.usd ?? 0), 0);
       if (real.length) deliver(u.householdId, real, usd, "Entrega de campo (minga)", `CAMPO-${u.id.slice(-4)}`);
-    });
-    if (ready.length) toast.success(`${ready.length} actualizaciones sincronizadas al tablero`);
-    if (pending.length) toast.info(`${pending.length} pendientes: el coordinador debe registrar los nuevos IDs antes de sincronizar.`);
-    setQueue(pending);
+      done.add(u.id);
+    }
+
+    // Real entries become needs in the database (needs the coordinator sign-in).
+    const live = registered.filter((x) => !x.demo);
+    let synced = 0;
+    if (live.length) {
+      setSyncing(true);
+      try {
+        const results = await syncFn({ data: { updates: live.map((u) => ({ id: u.id, householdId: u.householdId, items: u.items, photo: u.photo, at: u.at, survey: u.survey ?? {} })) } });
+        for (const r of results) { if (r.ok) { done.add(r.id); synced++; } }
+        const failed = results.filter((r) => !r.ok);
+        if (failed.length) toast.error(`${failed.length} sin sincronizar: ${failed[0]?.message ?? "error"}`);
+        if (synced) refreshLedger();
+      } catch {
+        toast.error("No se pudo sincronizar. Revise la conexión e inicio de sesión; las actualizaciones siguen en la cola.");
+      } finally { setSyncing(false); }
+    }
+
+    setQueue((q) => q.filter((u) => !done.has(u.id)));
+    const total = done.size;
+    if (total) toast.success(`${total} actualizaciones sincronizadas${synced ? ` (${synced} guardadas en la base de datos)` : " al tablero (demo)"}`);
+    if (pending) toast.info(`${pending} pendientes: el coordinador debe registrar los nuevos IDs antes de sincronizar.`);
   }
 
   return (
@@ -140,7 +167,7 @@ export function FieldCrew() {
           <Camera /> {photo ? "Foto + GPS ✔ 4.3339° N, 75.7039° W" : "Capture Photo + Stamp GPS (4.3339° N, 75.7039° W)"}
         </Button>
         <Button className="h-12 w-full" onClick={startSurvey}><ClipboardList /> Continuar a la encuesta ({items.length})</Button>
-        <Button variant="secondary" className="h-12 w-full" onClick={sync}><Wifi /> Simulate Signal Return & Sync Now</Button>
+        <Button variant="secondary" className="h-12 w-full" onClick={sync} disabled={syncing}><Wifi /> {syncing ? "Syncing…" : "Simulate Signal Return & Sync Now"}</Button>
       </div>
 
       {queue.length > 0 && (

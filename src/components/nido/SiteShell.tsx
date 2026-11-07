@@ -200,6 +200,11 @@ export function SiteShell({ children }: { children: ReactNode }) {
             <Button asChild variant={pathname === "/staff/coordinator" ? "secondary" : "ghost"}>
               <Link to="/staff/coordinator">{t.ai}</Link>
             </Button>
+            <Button asChild variant={pathname === "/staff/dashboard" ? "secondary" : "ghost"}>
+              <Link to="/staff/dashboard">
+                {es ? "Panel del coordinador" : "Coordinator dashboard"}
+              </Link>
+            </Button>
           </nav>
         )}
       </header>
