@@ -1,9 +1,11 @@
 # Nido database setup
 
-- [ ] Create requested schema, atomic approval functions, public-safe reads and private document storage.
-- [ ] Seed eight households, five expenses, links, items and needs from existing app data.
-- [ ] Verify permissions, category totals, atomic approvals and regenerated types.
-- [ ] Enable email sign-in, disable public signup and arrange coordinator password setup.
+- [x] Create requested schema, atomic approval functions, public-safe reads and private document storage; use private data-free household notifications instead of exposing raw household rows.
+- [x] Seed eight households, five expenses, eleven links, five items and nineteen needs from existing app data.
+- [x] Verify live permissions, category totals, twelve isolated PostgreSQL approval tests and regenerated types.
+- [x] Enable email sign-in.
+- [ ] Disable public signup: user must turn on Disable sign-up under More → Users → Auth settings because current unrelated hosted settings cannot be safely read.
+- [ ] Create coordinator@nidoabierto.org: user must choose a password securely under More → Users → Add user → Create new user.
 
 ## Workbench document review
 
@@ -14,4 +16,4 @@
 - [x] Keep approval updates atomic across households, ledger, and totals; cover rules with tests.
 - [x] Verify sample and fallback approval flows without changing dashboard or field-crew presentation.
 - [x] Real photo analysis connected to Gemini through Lovable Cloud.
-- [ ] Connect existing in-memory screens to permanent saving (outside this schema-only request).
+Future scope: connect existing in-memory screens to permanent saving; not part of this schema-only request.
