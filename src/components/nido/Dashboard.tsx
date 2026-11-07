@@ -6,6 +6,7 @@ import { AFFECTED, BASE_ASSISTED, BASE_SPENT_USD, PHASES, T, TOTAL_RAISED_USD, f
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { matchesPublicHousehold } from "@/lib/public-household-search";
 
 const PijaoMap = lazy(() => import("./PijaoMap"));
 
@@ -19,9 +20,8 @@ export function Dashboard() {
   const { lang, currency, phase, setPhase, households, expenses, extraSpent, extraAssisted } = useNido();
   const t = T[lang];
   const [q, setQ] = useState("");
-  const hs = useMemo(() => households.filter((h) => (!phase || h.phase === phase) && (h.name + h.vereda).toLowerCase().includes(q.toLowerCase())), [households, phase, q]);
+  const hs = useMemo(() => households.filter((h) => (!phase || h.phase === phase) && matchesPublicHousehold(h, q)), [households, phase, q]);
   const ex = expenses.filter((e) => !phase || e.phase === phase);
-  const name = (id: string) => households.find((h) => h.id === id)?.name ?? id;
 
   const kpis = [
     { label: t.raised, value: formatMoney(TOTAL_RAISED_USD, currency) },
@@ -84,13 +84,13 @@ export function Dashboard() {
             <TabsContent value="hh" className="space-y-3">
               <div className="relative">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t.search} className="pl-9" />
+                <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={lang === "es" ? "Buscar ID del hogar o vereda…" : "Search household ID or vereda…"} aria-label={lang === "es" ? "Buscar ID del hogar o vereda" : "Search household ID or vereda"} className="pl-9" />
               </div>
               <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
                 {hs.map((h) => (
                   <div key={h.id} className="rounded-lg border p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="font-semibold">{h.name}</p>
+                      <p className="font-semibold">{h.id}</p>
                       <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", STATUS[h.status].cls)}>{STATUS[h.status][lang]}</span>
                     </div>
                     <p className="text-xs text-muted-foreground">{h.vereda} · {h.community} · {h.members} pers. · F{h.phase} {PHASES[h.phase][lang]}</p>
@@ -117,7 +117,7 @@ export function Dashboard() {
                     </div>
                   </div>
                   <p className="mt-1 text-sm">{e.description}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">→ {e.householdIds.map(name).join(", ")}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">→ {e.householdIds.join(", ")}</p>
                 </div>
               ))}
             </TabsContent>

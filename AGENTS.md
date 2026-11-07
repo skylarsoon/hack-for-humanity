@@ -34,3 +34,4 @@ use the editor.
 - Apply shared household, expense, and impact-total changes in one pure reducer so batched approvals cannot diverge or double-count households.
 - Use TanStack server functions, not Supabase Edge Functions, for future app-internal document analysis; this stack requires server-only credential boundaries.
 - Keep drizzle.config.ts pointed at the generated schema and migration directory so draft migration checks can run without database credentials.
+- Public household search uses the browser-safe public-household-search helper and searches only ID and vereda, so private names cannot be discovered through filtering.

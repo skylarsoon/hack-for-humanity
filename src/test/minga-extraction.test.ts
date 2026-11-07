@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseCop, toMingaDoc } from "@/lib/minga-extraction";
 
-const households = [{ id: "fam_01", name: "Familia Gómez" }];
+const households = [{ id: "HH_01", name: "Familia Gómez" }];
 const base = { doc_type: "HARDWARE_RECEIPT", title: "Factura", transcription: "x", household: "", line_items: [{ item: "Lámpara", qty: 2 }, { item: "Clavos", qty: 1 }], total_cop: 226100, vendor: "Ferretería", low_confidence_warnings: [], match_score: 0, match_explanation: "" };
 
 describe("Gemini extraction mapping", () => {
@@ -20,12 +20,12 @@ describe("Gemini extraction mapping", () => {
     expect(toMingaDoc({ ...base, doc_type: "MENU" }, households)).toHaveProperty("error");
   });
   it("drops unknown household ids and only flags real matches as potential duplicates", () => {
-    const none = toMingaDoc({ ...base, household: "fam_99" }, households);
+    const none = toMingaDoc({ ...base, household: "HH_99" }, households);
     expect("doc" in none && none.doc.household).toBe("");
     expect("doc" in none && none.doc.entity_resolution).toBeNull();
-    const low = toMingaDoc({ ...base, household: "fam_01", match_score: 0.2 }, households);
+    const low = toMingaDoc({ ...base, household: "HH_01", match_score: 0.2 }, households);
     expect("doc" in low && low.doc.entity_resolution?.is_potential_duplicate).toBe(false);
-    const high = toMingaDoc({ ...base, household: "fam_01", match_score: 0.9 }, households);
+    const high = toMingaDoc({ ...base, household: "HH_01", match_score: 0.9 }, households);
     expect("doc" in high && high.doc.entity_resolution?.is_potential_duplicate).toBe(true);
   });
 });

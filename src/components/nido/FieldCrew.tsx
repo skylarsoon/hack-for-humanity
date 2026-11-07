@@ -5,7 +5,7 @@ import { useNido } from "@/lib/nido-store";
 import { SUPPLIES } from "@/lib/nido-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { fieldHouseholdIds, validateFieldHouseholdId } from "@/lib/field-household-ids";
+import { fieldHouseholdIds, fieldHouseholdLabel, validateFieldHouseholdId, validateFieldSurname } from "@/lib/field-household-ids";
 import { cn } from "@/lib/utils";
 
 export function FieldCrew() {
@@ -14,6 +14,9 @@ export function FieldCrew() {
   const [newId, setNewId] = useState("");
   const [idError, setIdError] = useState<string | null>(null);
   const ids = fieldHouseholdIds(households, fieldAddedIds);
+  const [newSurname, setNewSurname] = useState("");
+  const [addedNames, setAddedNames] = useState<Record<string, string>>({});
+  const label = (id: string) => fieldHouseholdLabel(id, households, addedNames);
   const [items, setItems] = useState<string[]>([]);
   const [photo, setPhoto] = useState(false);
 
@@ -22,7 +25,12 @@ export function FieldCrew() {
   function addId() {
     const result = validateFieldHouseholdId(newId, ids);
     if (result.error || !result.id) { setIdError(result.error ?? "ID inválido"); return; }
-    setFieldAddedIds((previous) => [...previous, result.id]);
+    const sn = validateFieldSurname(newSurname);
+    if (sn.error) { setIdError(sn.error); return; }
+    const addedId = result.id;
+    if (sn.surname) setAddedNames((m) => ({ ...m, [addedId]: sn.surname }));
+    setNewSurname("");
+    setFieldAddedIds((previous) => [...previous, addedId]);
     setHid(result.id);
     setNewId("");
     setIdError(null);
@@ -58,21 +66,22 @@ export function FieldCrew() {
         <WifiOff className="mt-0.5 h-4 w-4 shrink-0" />
         <p><b>OFFLINE MODE READY:</b> {queue.length} Household Updates Saved Locally — Auto-syncs when signal returns</p>
       </div>
-      <p className="mt-3 flex items-center justify-center gap-1 text-xs text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5" /> Identificación por código, sin nombres</p>
+      <p className="mt-3 flex items-center justify-center gap-1 text-xs text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5" /> Apellidos visibles solo para la cuadrilla — nunca en el tablero público</p>
 
-      <label htmlFor="field-household-id" className="mt-3 block text-sm font-semibold">ID del hogar</label>
+      <label htmlFor="field-household-id" className="mt-3 block text-sm font-semibold">ID del hogar · Apellido</label>
       <select id="field-household-id" value={hid} onChange={(e) => setHid(e.target.value)} className="mt-1 w-full rounded-lg border bg-card p-3 text-base">
-        {ids.map((id) => <option key={id} value={id}>{id}</option>)}
+        {ids.map((id) => <option key={id} value={id}>{label(id)}</option>)}
       </select>
 
       <section className="mt-4 border-y py-3">
         <label htmlFor="new-household-id" className="block text-sm font-semibold">¿El ID del hogar no está listado?</label>
         <form className="mt-2 flex gap-2" onSubmit={(event) => { event.preventDefault(); addId(); }}>
-          <Input id="new-household-id" value={newId} onChange={(event) => { setNewId(event.target.value); setIdError(null); }} placeholder="fam_09" aria-invalid={Boolean(idError)} aria-describedby={idError ? "household-id-error" : "household-id-note"} autoComplete="off" spellCheck={false} maxLength={12} className="min-w-0 flex-1" />
+          <Input id="new-household-id" value={newId} onChange={(event) => { setNewId(event.target.value); setIdError(null); }} placeholder="HH_09" aria-invalid={Boolean(idError)} aria-describedby={idError ? "household-id-error" : "household-id-note"} autoComplete="off" spellCheck={false} maxLength={12} className="min-w-0 flex-1" />
+          <Input aria-label="Apellido de la familia" value={newSurname} onChange={(event) => { setNewSurname(event.target.value); setIdError(null); }} placeholder="Apellido" autoComplete="off" maxLength={40} className="min-w-0 flex-1" />
           <Button type="submit" variant="outline" aria-label="Añadir ID de hogar"><Plus className="h-4 w-4" /> Añadir</Button>
         </form>
         {idError && <p id="household-id-error" role="alert" className="mt-2 text-xs text-destructive">{idError}</p>}
-        <p id="household-id-note" className="mt-2 text-xs text-muted-foreground">Solo códigos como fam_09; no nombres, teléfonos ni direcciones. Los IDs añadidos duran esta sesión.</p>
+        <p id="household-id-note" className="mt-2 text-xs text-muted-foreground">Código como HH_09 y, si quiere, solo el apellido. Sin teléfonos ni direcciones. Los IDs añadidos duran esta sesión.</p>
       </section>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
@@ -93,7 +102,7 @@ export function FieldCrew() {
 
       {queue.length > 0 && (
         <ul className="mt-4 space-y-1 text-xs text-muted-foreground">
-          {queue.map((u) => <li key={u.id} className="break-words">⏳ {u.at} · {u.householdId} · {u.items.join(", ")}{u.photo ? " · 📷" : ""}</li>)}
+          {queue.map((u) => <li key={u.id} className="break-words">⏳ {u.at} · {label(u.householdId)} · {u.items.join(", ")}{u.photo ? " · 📷" : ""}</li>)}
         </ul>
       )}
     </div>

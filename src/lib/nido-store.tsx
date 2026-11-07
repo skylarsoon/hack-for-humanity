@@ -11,8 +11,8 @@ function useNidoState() {
   const [{ households, expenses, extraSpent, extraAssisted }, dispatchDelivery] = useReducer(deliveryReducer, undefined, initialDeliveryState);
   const [fieldAddedIds, setFieldAddedIds] = useState<string[]>([]);
   const [queue, setQueue] = useState<QueuedUpdate[]>(() => [
-    { id: "q1", householdId: "fam_03", items: ["Tejas de Zinc"], photo: true, at: "07:42" },
-    { id: "q2", householdId: "fam_05", items: ["Lámpara Solar"], photo: false, at: "08:15" },
+    { id: "q1", householdId: "HH_03", items: ["Tejas de Zinc"], photo: true, at: "07:42" },
+    { id: "q2", householdId: "HH_05", items: ["Lámpara Solar"], photo: false, at: "08:15" },
   ]);
 
   /** Mark household delivered with items and record an expense. */
