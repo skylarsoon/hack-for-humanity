@@ -3,6 +3,9 @@ import gatheringPhoto from "@/assets/community-gathering.png.asset.json";
 import groupPhoto from "@/assets/community-group.png.asset.json";
 import type { Lang } from "@/lib/nido-data";
 
+// Lovable serves /__l5e/assets-v1/* only on its own hosts. When running elsewhere, set VITE_ASSET_BASE to a Lovable URL that serves them.
+const ASSET_BASE = (import.meta.env["VITE_ASSET_BASE"] as string | undefined)?.replace(/\/+$/, "") ?? "";
+
 const moments = [
   {
     image: homePhoto,
@@ -33,7 +36,7 @@ export function CommunityPhotos({ lang }: { lang: Lang }) {
         {moments.map((moment) => (
           <figure key={moment.image.asset_id} className="min-w-0">
             <div className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg bg-muted">
-              <img src={moment.image.url} alt={moment.alt[lang]} loading="lazy" className="h-full w-full object-contain" />
+              <img src={`${ASSET_BASE}${moment.image.url}`} alt={moment.alt[lang]} loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} className="h-full w-full object-contain" />
             </div>
           </figure>
         ))}
