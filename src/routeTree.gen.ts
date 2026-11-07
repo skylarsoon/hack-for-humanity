@@ -10,12 +10,18 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ImpactRouteImport } from './routes/impact'
 import { Route as StaffCoordinatorRouteImport } from './routes/staff.coordinator'
 import { Route as StaffFieldRouteImport } from './routes/staff.field'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ImpactRoute = ImpactRouteImport.update({
+  id: '/impact',
+  path: '/impact',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StaffCoordinatorRoute = StaffCoordinatorRouteImport.update({
@@ -31,30 +37,34 @@ const StaffFieldRoute = StaffFieldRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/impact': typeof ImpactRoute
   '/staff/coordinator': typeof StaffCoordinatorRoute
   '/staff/field': typeof StaffFieldRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/impact': typeof ImpactRoute
   '/staff/coordinator': typeof StaffCoordinatorRoute
   '/staff/field': typeof StaffFieldRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/impact': typeof ImpactRoute
   '/staff/coordinator': typeof StaffCoordinatorRoute
   '/staff/field': typeof StaffFieldRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/staff/coordinator' | '/staff/field'
+  fullPaths: '/' | '/impact' | '/staff/coordinator' | '/staff/field'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/staff/coordinator' | '/staff/field'
-  id: '__root__' | '/' | '/staff/coordinator' | '/staff/field'
+  to: '/' | '/impact' | '/staff/coordinator' | '/staff/field'
+  id: '__root__' | '/' | '/impact' | '/staff/coordinator' | '/staff/field'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ImpactRoute: typeof ImpactRoute
   StaffCoordinatorRoute: typeof StaffCoordinatorRoute
   StaffFieldRoute: typeof StaffFieldRoute
 }
@@ -66,6 +76,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/impact': {
+      id: '/impact'
+      path: '/impact'
+      fullPath: '/impact'
+      preLoaderRoute: typeof ImpactRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/staff/coordinator': {
@@ -87,6 +104,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ImpactRoute: ImpactRoute,
   StaffCoordinatorRoute: StaffCoordinatorRoute,
   StaffFieldRoute: StaffFieldRoute,
 }
