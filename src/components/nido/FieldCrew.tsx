@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Camera, Plus, Save, ShieldCheck, Wifi, WifiOff } from "lucide-react";
+import { buildSurvey } from "@/lib/field-surveys";
+import { ArrowLeft, Camera, ClipboardList, Plus, Save, ShieldCheck, Wifi, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { useNido } from "@/lib/nido-store";
 import { SUPPLIES } from "@/lib/nido-data";
@@ -37,12 +38,54 @@ export function FieldCrew() {
     toast.success("ID de hogar añadido a las opciones de esta sesión");
   }
 
-  function save() {
+  const [surveying, setSurveying] = useState(false);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+
+  function startSurvey() {
     if (!ids.includes(hid)) { toast.error("Seleccione un ID de hogar"); return; }
     if (!items.length) { toast.error("Toque al menos un ícono"); return; }
-    setQueue((q) => [...q, { id: `q${Date.now()}`, householdId: hid, items, photo, at: new Date().toTimeString().slice(0, 5) }]);
-    setItems([]); setPhoto(false);
-    toast.success("Guardado sin señal ✔");
+    setAnswers({}); setSurveying(true);
+  }
+
+  function save() {
+    setQueue((q) => [...q, { id: `q${Date.now()}`, householdId: hid, items, photo, survey: answers, at: new Date().toTimeString().slice(0, 5) }]);
+    setItems([]); setPhoto(false); setSurveying(false); setAnswers({});
+    toast.success("Encuesta guardada sin señal ✔");
+  }
+
+  if (surveying) {
+    const sections = buildSurvey(items);
+    return (
+      <div className="mx-auto w-full max-w-[420px] rounded-[2.5rem] border-8 border-foreground bg-background p-4 shadow-card">
+        <div className="mx-auto mb-3 h-1.5 w-24 rounded-full bg-foreground/80" />
+        <button onClick={() => setSurveying(false)} className="flex items-center gap-1 text-sm text-muted-foreground"><ArrowLeft className="h-4 w-4" /> Volver</button>
+        <h2 className="mt-2 font-display text-xl font-semibold">Encuesta · {hid}</h2>
+        <p className="text-xs text-muted-foreground">Solo se muestran preguntas de las necesidades seleccionadas. Pida consentimiento antes de fotos o GPS. No registre nombres ni teléfonos.</p>
+        <form className="mt-3 space-y-5" onSubmit={(e) => { e.preventDefault(); save(); }}>
+          {sections.map((s) => (
+            <fieldset key={s.key} className="space-y-3 rounded-xl border bg-card p-3">
+              <legend className="px-1 text-sm font-bold text-primary">{s.title}</legend>
+              {s.questions.map((qq) => (
+                <div key={qq.id}>
+                  <p className="text-sm font-semibold">{qq.es}</p>
+                  <p className="text-xs text-muted-foreground">{qq.en}</p>
+                  {qq.type === "choice" ? (
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {qq.options!.map((o) => (
+                        <button type="button" key={o} onClick={() => setAnswers((a) => ({ ...a, [qq.id]: o }))} className={cn("rounded-full border px-3 py-1 text-xs", answers[qq.id] === o ? "border-primary bg-primary text-primary-foreground" : "bg-background")}>{o}</button>
+                      ))}
+                    </div>
+                  ) : (
+                    <Input className="mt-1" type={qq.type === "number" ? "number" : "text"} inputMode={qq.type === "number" ? "numeric" : undefined} min={0} value={answers[qq.id] ?? ""} onChange={(e) => setAnswers((a) => ({ ...a, [qq.id]: e.target.value }))} maxLength={200} />
+                  )}
+                </div>
+              ))}
+            </fieldset>
+          ))}
+          <Button type="submit" className="h-12 w-full"><Save /> Guardar encuesta en cola offline</Button>
+        </form>
+      </div>
+    );
   }
 
   function sync() {
@@ -96,7 +139,7 @@ export function FieldCrew() {
         <Button variant={photo ? "default" : "outline"} className="h-12 w-full" onClick={() => setPhoto(true)}>
           <Camera /> {photo ? "Foto + GPS ✔ 4.3339° N, 75.7039° W" : "Capture Photo + Stamp GPS (4.3339° N, 75.7039° W)"}
         </Button>
-        <Button className="h-12 w-full" onClick={save}><Save /> Save to Offline Queue</Button>
+        <Button className="h-12 w-full" onClick={startSurvey}><ClipboardList /> Continuar a la encuesta ({items.length})</Button>
         <Button variant="secondary" className="h-12 w-full" onClick={sync}><Wifi /> Simulate Signal Return & Sync Now</Button>
       </div>
 
