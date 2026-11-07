@@ -7,7 +7,7 @@ import { T } from "@/lib/nido-data";
 import { Dashboard } from "@/components/nido/Dashboard";
 import { FieldCrew } from "@/components/nido/FieldCrew";
 import { Workbench } from "@/components/nido/Workbench";
-import { Builders } from "@/components/nido/Builders";
+import { DonorImpact } from "@/components/nido/DonorImpact";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Toaster } from "@/components/ui/sonner";
@@ -78,7 +78,7 @@ function App() {
       <main className="mx-auto max-w-7xl px-4 py-6">
         {view === "dash" && <Dashboard />}
         {view === "field" && <FieldCrew />}
-        {view === "build" && <Builders />}
+        {view === "build" && <DonorImpact />}
         {view === "ai" && <Workbench />}
       </main>
       <footer className="py-8 text-center text-xs text-muted-foreground">Espejo de Agua × Esto es Quindío · Alianza Nido · 1 USD = 3.230 COP</footer>
