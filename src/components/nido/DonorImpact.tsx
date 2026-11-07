@@ -36,13 +36,25 @@ export function DonorImpact() {
       <div className="grid gap-6 md:grid-cols-2">
         <section className="rounded-xl bg-card p-6 shadow-card">
           <h3 className="flex items-center gap-2 text-lg font-semibold"><MapPin className="h-5 w-5 text-accent" />{es ? "¿A dónde va?" : "Where is it going?"}</h3>
+          <div className="mt-4">
+            <ClientOnly fallback={<div className="h-[380px] animate-pulse rounded-xl bg-muted" />}>
+              <Suspense fallback={<div className="h-[380px] animate-pulse rounded-xl bg-muted" />}>
+                <RegionMap spent={veredas} currency={currency} es={es} />
+              </Suspense>
+            </ClientOnly>
+          </div>
           <div className="mt-4 space-y-3">
-            {Object.entries(veredas).sort((a, b) => b[1] - a[1]).map(([v, usd]) => (
-              <div key={v}>
-                <div className="flex justify-between text-sm"><span>{v}</span><b>{formatMoney(usd, currency)}</b></div>
-                <div className="mt-1 h-2 rounded-full bg-muted"><div className="h-2 rounded-full bg-accent" style={{ width: `${(usd / maxV) * 100}%` }} /></div>
-              </div>
-            ))}
+            {REGIONS.map((r) => {
+              const got = veredas[r.vereda] ?? 0;
+              const pct = regionProgress(got, r.needUsd);
+              return (
+                <div key={r.vereda}>
+                  <div className="flex justify-between text-sm"><span>{r.vereda}</span><span><b>{formatMoney(got, currency)}</b> / {formatMoney(r.needUsd, currency)}</span></div>
+                  <div className="mt-1 h-2 rounded-full bg-muted"><div className="h-2 rounded-full bg-accent" style={{ width: `${pct}%` }} /></div>
+                  <p className="text-xs text-muted-foreground">{pct}% {es ? "de lo necesario para recuperarse (estimado)" : "of what's needed to fully recover (estimate)"}</p>
+                </div>
+              );
+            })}
           </div>
           <p className="mt-4 flex items-start gap-2 rounded-lg bg-muted p-3 text-xs text-muted-foreground"><ShieldCheck className="h-4 w-4 shrink-0 text-primary" />{es ? "Para proteger a las familias, mostramos solo totales por vereda — sin nombres, números de hogar ni ubicaciones exactas." : "To protect families, we only show totals per vereda — no names, household numbers or exact locations."}</p>
         </section>
