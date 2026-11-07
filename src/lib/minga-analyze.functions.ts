@@ -30,9 +30,9 @@ const schema = {
   required: ["doc_type", "title", "transcription", "household", "line_items", "total_cop", "vendor", "low_confidence_warnings", "match_score", "match_explanation"],
 };
 
-// Preferred model first, then fallbacks used when one is overloaded (503) or rate-limited (429).
-const MODELS = [...new Set([process.env["GEMINI_MODEL"], "gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash"].filter(Boolean))] as string[];
-const TIMEOUT_MS = 30_000;
+// Most responsive model first (gemini-3.8-flash is often overloaded), then fallbacks for 429/503/timeouts.
+const MODELS = [...new Set([process.env["GEMINI_MODEL"], "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.8-flash"].filter(Boolean))] as string[];
+const TIMEOUT_MS = 20_000;
 
 const buildPrompt = (list: string) => `You read disaster-relief paperwork from Pijao, Quindío, Colombia (Spanish, often handwritten, often photographed at an angle).
 
@@ -51,7 +51,7 @@ Example - factura "FERRETERIA PIJAO / 2 lámparas solares / TOTAL $226.100" -> H
 Example - handwritten census "Maria Gomez, necesita 12 (¿17?) tejas de zinc" -> CENSUS_FORM, line_items [{item:"Tejas de zinc", qty:12}], a warning about 12 vs 17, household matched to the Gómez family.`;
 
 export const analyzeMingaDocument = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => Input.parse(d))
+  .validator((d: unknown) => Input.parse(d))
   .handler(async ({ data }): Promise<{ doc: MingaDoc | null; error: string | null }> => {
     const key = process.env["GEMINI_API_KEY"];
     if (!key) return { doc: null, error: "Gemini key is not configured." };
