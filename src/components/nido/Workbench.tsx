@@ -6,6 +6,8 @@ import { AFFECTED, BASE_ASSISTED, BASE_SPENT_USD, TOTAL_RAISED_USD, USD_TO_COP, 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { useServerFn } from "@tanstack/react-start";
+import { analyzeMingaDocument } from "@/lib/minga-analyze.functions";
 import { SAMPLE_DELAY_MS, sampleDocument, supportedPhoto, validApproval, type MingaDoc, type SampleKind } from "@/lib/minga-documents";
 
 const STEPS = ["1. Document classification", "2. Handwriting & COP/USD review", "3. Household match review"];
@@ -23,6 +25,8 @@ export function Workbench() {
   const previewUrl = useRef<string | null>(null);
   const [drag, setDrag] = useState(false);
   const [dispatch, setDispatch] = useState<{ es: string; en: string } | null>(null);
+  const [real, setReal] = useState(false);
+  const analyze = useServerFn(analyzeMingaDocument);
 
   useEffect(() => () => {
     pending.current.forEach(clearTimeout);
@@ -34,25 +38,42 @@ export function Workbench() {
     if (previewUrl.current && previewUrl.current !== image) URL.revokeObjectURL(previewUrl.current);
     previewUrl.current = image;
     setImg(image); setUploadName(name); setDoc(null); setStep(0);
-    setBusy(true); setFallback(Boolean(image)); setAcknowledged(false);
+    setBusy(true); setFallback(Boolean(image)); setAcknowledged(false); setReal(false);
     pending.current = [
       setTimeout(() => setStep(1), SAMPLE_DELAY_MS / 3),
       setTimeout(() => setStep(2), SAMPLE_DELAY_MS * 2 / 3),
       setTimeout(() => { setDoc(sampleDocument(kind)); setStep(3); setBusy(false); }, SAMPLE_DELAY_MS),
     ];
   }
-  function onFile(f?: File) {
+  async function onFile(f?: File) {
     if (!f) return;
     if (!supportedPhoto(f.type)) { toast.error("Choose a PNG or JPG photo."); return; }
-    load("census", URL.createObjectURL(f), f.name);
+    if (f.size > 10_000_000) { toast.error("Photo is too large (max 10 MB)."); return; }
+    pending.current.forEach(clearTimeout);
+    if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
+    const url = URL.createObjectURL(f);
+    previewUrl.current = url;
+    setImg(url); setUploadName(f.name); setDoc(null); setStep(0); setBusy(true); setFallback(false); setAcknowledged(false); setReal(false);
+    pending.current = [setTimeout(() => setStep(1), 1500), setTimeout(() => setStep(2), 3500)];
+    try {
+      const buf = new Uint8Array(await f.arrayBuffer());
+      let bin = "";
+      for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+      const res = await analyze({ data: { mimeType: f.type as "image/png" | "image/jpeg", base64: btoa(bin), households: households.map((h) => ({ id: h.id, name: h.name })) } });
+      pending.current.forEach(clearTimeout);
+      if (res.doc) { setDoc(res.doc); setReal(true); setStep(3); }
+      else { toast.error(res.error ?? "Analysis failed."); setImg(null); }
+    } catch {
+      toast.error("Analysis failed."); setImg(null);
+    } finally { setBusy(false); }
   }
   const match = doc && households.find((h) => h.id === doc.household);
   const canApprove = doc && validApproval(doc, households.map((h) => h.id)) && acknowledged;
 
   function approve() {
     if (!doc || !canApprove) return;
-    deliver(doc.household, [doc.item], Math.round(doc.cop / USD_TO_COP), doc.vendor, `SAMPLE-${crypto.randomUUID()}`);
-    toast.success(`Sample approved: ${match?.name} → delivered; ledger updated`);
+    deliver(doc.household, [doc.item], Math.round(doc.cop / USD_TO_COP), doc.vendor, `${real ? "AI" : "SAMPLE"}-${crypto.randomUUID()}`);
+    toast.success(`${real ? "Approved" : "Sample approved"}: ${match?.name} → delivered; ledger updated`);
     setDoc(null); setImg(null);
     if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
     previewUrl.current = null;
@@ -71,7 +92,7 @@ export function Workbench() {
     <div className="space-y-8">
       <section className="rounded-xl bg-card p-6 shadow-card">
         <h2 className="text-2xl font-semibold">Unified Smart Minga Dropzone</h2>
-        <p role="status" className="mt-3 rounded-lg border border-warning bg-warning/15 p-3 text-sm">Sample mode · Real photo analysis is not connected. Approvals update this session only.</p>
+        <p role="status" className="mt-3 rounded-lg border border-warning bg-warning/15 p-3 text-sm">Uploaded photos are read by Gemini · Sample buttons use demo data. Approvals update this session only.</p>
         <label
           onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
           onDragLeave={() => setDrag(false)}
@@ -102,11 +123,11 @@ export function Workbench() {
               <div className="mt-6 grid gap-6 md:grid-cols-2">
                 <div className="rounded-xl border bg-muted p-4">
                   <p className="mb-2 flex items-center gap-2 break-all text-sm font-semibold"><FileText className="h-4 w-4 shrink-0" />{uploadName || doc.title}</p>
-                  {img ? <img src={img} alt="Uploaded document" className="max-h-80 w-full rounded object-contain" /> : <pre className="whitespace-pre-wrap rounded bg-card p-4 font-display text-lg italic">{doc.preview}</pre>}
+                  {img ? <><img src={img} alt="Uploaded document" className="max-h-80 w-full rounded object-contain" />{real && doc.preview && <pre className="mt-3 whitespace-pre-wrap rounded bg-card p-3 text-sm">{doc.preview}</pre>}</> : <pre className="whitespace-pre-wrap rounded bg-card p-4 font-display text-lg italic">{doc.preview}</pre>}
                   {fallback && <p role="alert" className="mt-3 text-sm text-destructive">This photo has not been analyzed. The fields are sample census data, not extracted from your photo.</p>}
                 </div>
                 <div className="space-y-3">
-                  <p className="text-xs font-semibold text-muted-foreground">SAMPLE · {doc.doc_type.replaceAll("_", " ")}</p>
+                  <p className="text-xs font-semibold text-muted-foreground">{real ? "GEMINI EXTRACTION" : "SAMPLE"} · {doc.doc_type.replaceAll("_", " ")}</p>
                   <Field label="Item"><Input value={doc.item} onChange={(e) => setDoc({ ...doc, item: e.target.value })} /></Field>
                   <Field label="Quantity">
                     <Input min={1} step={1} type="number" value={doc.qty} onChange={(e) => setDoc({ ...doc, qty: +e.target.value })} className={doc.low_confidence_warnings.length ? "border-warning bg-warning/15" : ""} />
@@ -131,7 +152,7 @@ export function Workbench() {
                       </div>
                     </div>
                   )}
-                  <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} className="mt-1" />I reviewed these sample fields and want to update the demo dashboard.</label>
+                  <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} className="mt-1" />{real ? "I checked these fields against the photo." : "I reviewed these sample fields and want to update the demo dashboard."}</label>
                   <Button disabled={!canApprove} className="min-h-12 w-full whitespace-normal bg-success text-primary-foreground hover:bg-success/90" onClick={approve}><Check className="shrink-0" /> Approve & Publish to Open Books</Button>
                 </div>
               </div>
