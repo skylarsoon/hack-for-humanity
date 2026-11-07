@@ -1,6 +1,6 @@
-import homePhoto from "@/assets/pijao-home-frame.png.asset.json";
-import gatheringPhoto from "@/assets/community-gathering.png.asset.json";
-import groupPhoto from "@/assets/community-group.png.asset.json";
+import homePhoto from "@/assets/pijao-home-frame.png";
+import gatheringPhoto from "@/assets/community-gathering.png";
+import groupPhoto from "@/assets/community-group.webp";
 import type { Lang } from "@/lib/nido-data";
 
 const moments = [
@@ -31,9 +31,9 @@ export function CommunityPhotos({ lang }: { lang: Lang }) {
       </div>
       <div className="grid gap-6 sm:grid-cols-3">
         {moments.map((moment) => (
-          <figure key={moment.image.asset_id} className="min-w-0">
+          <figure key={moment.image} className="min-w-0">
             <div className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg bg-muted">
-              <img src={moment.image.url} alt={moment.alt[lang]} loading="lazy" className="h-full w-full object-contain" />
+              <img src={moment.image} alt={moment.alt[lang]} loading="lazy" className="h-full w-full object-contain" />
             </div>
           </figure>
         ))}
