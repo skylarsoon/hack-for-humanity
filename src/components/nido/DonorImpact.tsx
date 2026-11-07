@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
+import { ClientOnly } from "@tanstack/react-router";
 import { Heart, MapPin, ShieldCheck } from "lucide-react";
 import { useNido } from "@/lib/nido-store";
 import { formatMoney } from "@/lib/nido-data";
-import { CATEGORIES, impactByCategory, impactByVereda, whatItBuys, type ImpactCategory } from "@/lib/donor-impact";
+import { CATEGORIES, impactByCategory, impactByVereda, regionProgress, REGIONS, whatItBuys, type ImpactCategory } from "@/lib/donor-impact";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+const RegionMap = lazy(() => import("./RegionMap"));
 const GOFUNDME = "https://www.gofundme.com/f/support-pijao-families-after-earthquake-and-fires?cp_src=d";
 
 export function DonorImpact() {
@@ -14,7 +16,6 @@ export function DonorImpact() {
   const cats = impactByCategory(expenses);
   const veredas = impactByVereda(expenses, households);
   const total = Object.values(cats).reduce((a, b) => a + b, 0) || 1;
-  const maxV = Math.max(1, ...Object.values(veredas));
   const [amount, setAmount] = useState(50);
   const buys = whatItBuys(amount);
 
@@ -33,7 +34,7 @@ export function DonorImpact() {
         </div>
       </section>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
         <section className="rounded-xl bg-card p-6 shadow-card">
           <h3 className="flex items-center gap-2 text-lg font-semibold"><MapPin className="h-5 w-5 text-accent" />{es ? "¿A dónde va?" : "Where is it going?"}</h3>
           <div className="mt-4">
