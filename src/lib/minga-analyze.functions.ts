@@ -35,7 +35,7 @@ export const analyzeMingaDocument = createServerFn({ method: "POST" })
     const prompt = `You read disaster-relief paperwork from Pijao, Quindío, Colombia (Spanish, often handwritten). Classify the photo as a census form, signed delivery acta, or hardware store receipt. Extract the main item, quantity and total in COP. Match it to one of these households (return its id, or "" if unsure):\n${list}\nAdd a warning for any handwriting you are unsure about.`;
     try {
       const res = await fetch(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",
         {
           method: "POST",
           headers: { "content-type": "application/json", "x-goog-api-key": key },
