@@ -38,3 +38,5 @@ use the editor.
 - Format public household identifiers through the shared public-households helper rather than displaying names; keep underlying record keys unchanged so existing deliveries and expenses stay linked.
 - Keep donor community photos in CommunityPhotos with bilingual alternative text and CDN asset pointers; show full images without linking identifiable faces to household records.
 - Public household search uses the browser-safe public-household-search helper and searches only ID and vereda, so private names cannot be discovered through filtering.
+- Anonymous database household reads must use the public_households view or explicitly granted columns; names, coordinates and notes are staff-only. Household changes use private data-free notifications instead of raw realtime row payloads to avoid leaking private columns.
+- Database approvals use security-invoker transactional functions so expenses, items, household needs and cost totals commit together and duplicate receipts cannot double-count.
