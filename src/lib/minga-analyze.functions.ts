@@ -30,7 +30,8 @@ const schema = {
   required: ["doc_type", "title", "transcription", "household", "line_items", "total_cop", "vendor", "low_confidence_warnings", "match_score", "match_explanation"],
 };
 
-const MODEL = process.env["GEMINI_MODEL"] || "gemini-3.8-flash";
+// Preferred model first, then fallbacks used when one is overloaded (503) or rate-limited (429).
+const MODELS = [...new Set([process.env["GEMINI_MODEL"], "gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash"].filter(Boolean))] as string[];
 const TIMEOUT_MS = 30_000;
 
 const buildPrompt = (list: string) => `You read disaster-relief paperwork from Pijao, Quindío, Colombia (Spanish, often handwritten, often photographed at an angle).
