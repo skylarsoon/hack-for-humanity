@@ -7,7 +7,7 @@ import { deliveryReducer, initialDeliveryState } from "./nido-delivery";
 
 const seedStatus = (id: string) => seedHouseholds().find((h) => h.id === id)?.status;
 
-export interface QueuedUpdate { id: string; householdId: string; items: string[]; photo: boolean; at: string }
+export interface QueuedUpdate { id: string; householdId: string; items: string[]; photo: boolean; at: string; survey?: Record<string, string> }
 
 function useNidoState() {
   const [lang, setLang] = useState<Lang>("es");
