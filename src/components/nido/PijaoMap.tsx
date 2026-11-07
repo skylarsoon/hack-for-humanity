@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { CENTER, HAZARD, formatMoney, type Currency, type Household } from "@/lib/nido-data";
+import { publicHouseholdId } from "@/lib/public-households";
 
 const COLORS = { needs: "#c0392b", progress: "#e0a800", delivered: "#2e8b57" };
 
@@ -31,7 +32,7 @@ export default function PijaoMap({ households, currency }: { households: Househo
         ? `<div style="margin-top:6px"><b>Entregado:</b> ${h.delivered.join(", ")}<br/><b>Costo:</b> ${formatMoney(h.costUsd, currency)}<br/><span style="display:inline-block;margin-top:4px;padding:2px 8px;border-radius:99px;background:#2e8b57;color:#fff;font-size:11px">✔ Signed Acta Verified</span></div>`
         : `<div style="margin-top:6px"><b>Necesita:</b> ${h.needs.join(", ") || "—"}</div>`;
       L.circleMarker([h.lat, h.lng], { radius: 10, color: "#fff", weight: 2, fillColor: COLORS[h.status], fillOpacity: 0.95 })
-        .bindPopup(`<b>${h.id}</b><br/>${h.vereda} · ${h.community}${proof}`)
+        .bindPopup(`<b>${publicHouseholdId(h.id)}</b><br/>${h.vereda} · ${h.community}${h.note ? `<br/><i>${h.note}</i>` : ""}${proof}`)
         .addTo(g);
     });
   }, [households, currency]);

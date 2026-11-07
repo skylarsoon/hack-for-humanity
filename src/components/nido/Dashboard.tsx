@@ -1,12 +1,13 @@
 import { lazy, Suspense, useMemo, useState } from "react";
 import { ClientOnly } from "@tanstack/react-router";
-import { AlertTriangle, Search, Receipt } from "lucide-react";
+import { AlertTriangle, Heart, Search, Receipt } from "lucide-react";
 import { useNido } from "@/lib/nido-store";
 import { AFFECTED, BASE_ASSISTED, BASE_SPENT_USD, PHASES, T, TOTAL_RAISED_USD, formatMoney, type Phase } from "@/lib/nido-data";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { matchesPublicHousehold } from "@/lib/public-household-search";
+import { matchesPublicHousehold, publicHouseholdId } from "@/lib/public-households";
+import { CommunityPhotos } from "./CommunityPhotos";
 
 const PijaoMap = lazy(() => import("./PijaoMap"));
 
@@ -22,25 +23,55 @@ export function Dashboard() {
   const [q, setQ] = useState("");
   const hs = useMemo(() => households.filter((h) => (!phase || h.phase === phase) && matchesPublicHousehold(h, q)), [households, phase, q]);
   const ex = expenses.filter((e) => !phase || e.phase === phase);
+  const spent = BASE_SPENT_USD + extraSpent;
+  const spentPercent = (spent / TOTAL_RAISED_USD) * 100;
+  const remaining = TOTAL_RAISED_USD - spent;
 
   const kpis = [
-    { label: t.raised, value: formatMoney(TOTAL_RAISED_USD, currency) },
-    { label: t.spent, value: formatMoney(BASE_SPENT_USD + extraSpent, currency) },
     { label: t.assisted, value: `${BASE_ASSISTED + extraAssisted} / ${AFFECTED}` },
     { label: t.crews, value: `4 ${lang === "es" ? "cuadrillas" : "crews"}` },
   ];
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="space-y-3">
+      <CommunityPhotos lang={lang} />
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <section aria-label={lang === "es" ? "Fondos de la comunidad" : "Community funding"} className="min-w-0 rounded-xl border border-primary/20 bg-card p-5 shadow-card sm:p-7 lg:col-span-2">
+          <div className="flex items-center gap-2 text-primary">
+            <Heart className="h-5 w-5" aria-hidden="true" />
+            <p className="text-sm font-semibold">{lang === "es" ? "Tu apoyo, en acción" : "Your support, in action"}</p>
+          </div>
+          <p className="mt-5 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.raised}</p>
+          <p className="mt-1 break-words font-display text-3xl font-semibold tabular-nums text-primary sm:text-5xl">{formatMoney(TOTAL_RAISED_USD, currency)} <span className="font-sans text-xs font-medium text-muted-foreground">{currency}</span></p>
+          <div className="mt-6 flex flex-wrap items-end justify-between gap-3 border-t pt-4">
+            <div>
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Receipt className="h-4 w-4 shrink-0" aria-hidden="true" />{t.spent}</p>
+              <p className="mt-1 font-display text-2xl font-semibold tabular-nums text-foreground">{formatMoney(spent, currency)}</p>
+            </div>
+            <p className="text-sm font-semibold text-primary">{spentPercent.toFixed(1)}% {lang === "es" ? "utilizado" : "used"}</p>
+          </div>
+          <svg viewBox="0 0 100 4" preserveAspectRatio="none" className="mt-3 h-3 w-full overflow-hidden rounded-full" role="meter" aria-label={lang === "es" ? "Fondos utilizados" : "Funds used"} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(100, spentPercent)}>
+            <rect width="100" height="4" className="fill-muted" />
+            <rect width={Math.min(100, Math.max(0, spentPercent))} height="4" className="fill-primary" />
+          </svg>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+            <span className="text-muted-foreground">{lang === "es" ? "Saldo restante para la recuperación" : "Remaining for recovery"}</span>
+            <span className="font-semibold tabular-nums text-primary">{formatMoney(remaining, currency)}</span>
+          </div>
+        </section>
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-1">
         {kpis.map((k) => (
-          <div key={k.label} className="rounded-xl bg-card p-5 shadow-card">
+          <div key={k.label} className="min-w-0 rounded-xl bg-card p-5 shadow-card">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{k.label}</p>
             <p className="mt-2 font-display text-2xl font-semibold text-primary md:text-3xl">{k.value}</p>
           </div>
         ))}
+        </div>
       </div>
 
+      </div>
       <div className="grid gap-3 md:grid-cols-4">
         <button onClick={() => setPhase(null)} className={cn("rounded-xl border p-4 text-left transition", !phase ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:border-primary")}>
           <p className="font-display text-lg font-semibold">{t.all}</p>
@@ -84,13 +115,13 @@ export function Dashboard() {
             <TabsContent value="hh" className="space-y-3">
               <div className="relative">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={lang === "es" ? "Buscar ID del hogar o vereda…" : "Search household ID or vereda…"} aria-label={lang === "es" ? "Buscar ID del hogar o vereda" : "Search household ID or vereda"} className="pl-9" />
+                <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t.search} className="pl-9" />
               </div>
               <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
                 {hs.map((h) => (
                   <div key={h.id} className="rounded-lg border p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="font-semibold">{h.id}</p>
+                      <p className="font-semibold">{publicHouseholdId(h.id)}</p>
                       <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", STATUS[h.status].cls)}>{STATUS[h.status][lang]}</span>
                     </div>
                     <p className="text-xs text-muted-foreground">{h.vereda} · {h.community} · {h.members} pers. · F{h.phase} {PHASES[h.phase][lang]}</p>
@@ -117,7 +148,7 @@ export function Dashboard() {
                     </div>
                   </div>
                   <p className="mt-1 text-sm">{e.description}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">→ {e.householdIds.join(", ")}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">→ {e.householdIds.map(publicHouseholdId).join(", ")}</p>
                 </div>
               ))}
             </TabsContent>
