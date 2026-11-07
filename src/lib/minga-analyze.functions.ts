@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import type { MingaDoc } from "./minga-documents";
+import { toMingaDoc } from "./minga-extraction";
 
 const Input = z.object({
   mimeType: z.enum(["image/png", "image/jpeg"]),
@@ -13,35 +14,57 @@ const schema = {
   properties: {
     doc_type: { type: "STRING", enum: ["CENSUS_FORM", "SIGNED_ACTA", "HARDWARE_RECEIPT"] },
     title: { type: "STRING" },
-    transcription: { type: "STRING" },
+    transcription: { type: "STRING", description: "Faithful transcription of all legible text, line by line" },
     household: { type: "STRING", description: "Matching household id from the list, or empty string" },
-    item: { type: "STRING" },
-    qty: { type: "INTEGER" },
-    cop: { type: "NUMBER", description: "Total in Colombian pesos" },
+    line_items: {
+      type: "ARRAY",
+      description: "One entry per distinct item line on the document",
+      items: { type: "OBJECT", properties: { item: { type: "STRING" }, qty: { type: "INTEGER" } }, required: ["item", "qty"] },
+    },
+    total_cop: { type: "NUMBER", description: "Document total in whole Colombian pesos (printed total if present, else sum of lines)" },
     vendor: { type: "STRING" },
     low_confidence_warnings: { type: "ARRAY", items: { type: "STRING" } },
     match_score: { type: "NUMBER", description: "0-1 confidence of household match" },
     match_explanation: { type: "STRING" },
   },
-  required: ["doc_type", "title", "transcription", "household", "item", "qty", "cop", "vendor", "low_confidence_warnings", "match_score", "match_explanation"],
+  required: ["doc_type", "title", "transcription", "household", "line_items", "total_cop", "vendor", "low_confidence_warnings", "match_score", "match_explanation"],
 };
+
+const MODEL = process.env["GEMINI_MODEL"] || "gemini-3.8-flash";
+const TIMEOUT_MS = 30_000;
+
+const buildPrompt = (list: string) => `You read disaster-relief paperwork from Pijao, Quindío, Colombia (Spanish, often handwritten, often photographed at an angle).
+
+Step 1 - Classify: CENSUS_FORM (household needs list), SIGNED_ACTA (signed delivery receipt) or HARDWARE_RECEIPT (store factura).
+Step 2 - Transcribe all legible text into "transcription" first, line by line.
+Step 3 - Extract EVERY item line into line_items with its quantity. Do not collapse several items into one.
+
+Number rules (Colombian format): "." separates thousands and "," separates decimals, so "$226.100" is 226100 pesos, never 226.1. Amounts are whole pesos. For total_cop use the printed TOTAL when there is one; do not use a unit price. If no total is printed, sum the lines.
+Handwriting: if a digit or word is crossed out, overwritten or ambiguous, pick the most likely reading and add a low_confidence_warning naming the competing readings (e.g. "quantity looks like 12 or 17 tejas").
+
+Household match: ignore accents and surname/first-name order. Return the household id only when you are reasonably sure, otherwise "".
+Households (id|name):
+${list}
+
+Example - factura "FERRETERIA PIJAO / 2 lámparas solares / TOTAL $226.100" -> HARDWARE_RECEIPT, line_items [{item:"Lámpara solar", qty:2}], total_cop 226100, household "".
+Example - handwritten census "Maria Gomez, necesita 12 (¿17?) tejas de zinc" -> CENSUS_FORM, line_items [{item:"Tejas de zinc", qty:12}], a warning about 12 vs 17, household matched to the Gómez family.`;
 
 export const analyzeMingaDocument = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => Input.parse(d))
   .handler(async ({ data }): Promise<{ doc: MingaDoc | null; error: string | null }> => {
     const key = process.env["GEMINI_API_KEY"];
     if (!key) return { doc: null, error: "Gemini key is not configured." };
-    const list = data.households.map((h) => `${h.id}: ${h.name}`).join("\n");
-    const prompt = `You read disaster-relief paperwork from Pijao, Quindío, Colombia (Spanish, often handwritten). Classify the photo as a census form, signed delivery acta, or hardware store receipt. Extract the main item, quantity and total in COP. Match it to one of these households (return its id, or "" if unsure):\n${list}\nAdd a warning for any handwriting you are unsure about.`;
+    const prompt = buildPrompt(data.households.map((h) => `${h.id}|${h.name}`).join("\n"));
     try {
       const res = await fetch(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",
+        `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`,
         {
           method: "POST",
           headers: { "content-type": "application/json", "x-goog-api-key": key },
+          signal: AbortSignal.timeout(TIMEOUT_MS),
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: data.mimeType, data: data.base64 } }] }],
-            generationConfig: { responseMimeType: "application/json", responseSchema: schema },
+            generationConfig: { temperature: 0, responseMimeType: "application/json", responseSchema: schema },
           }),
         },
       );
@@ -52,29 +75,11 @@ export const analyzeMingaDocument = createServerFn({ method: "POST" })
       const json = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
       const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!text) return { doc: null, error: "Gemini returned no result for this photo." };
-      const r = JSON.parse(text);
-      const ids = data.households.map((h) => h.id);
-      const household = ids.includes(r.household) ? r.household : "";
-      const matched = data.households.find((h) => h.id === household);
-      return {
-        error: null,
-        doc: {
-          title: String(r.title || "Document"),
-          preview: String(r.transcription || ""),
-          doc_type: r.doc_type,
-          household,
-          item: String(r.item || ""),
-          qty: Math.max(1, Math.round(Number(r.qty) || 1)),
-          cop: Math.max(0, Number(r.cop) || 0),
-          vendor: String(r.vendor || ""),
-          low_confidence_warnings: Array.isArray(r.low_confidence_warnings) ? r.low_confidence_warnings.map(String) : [],
-          entity_resolution: matched
-            ? { is_potential_duplicate: true, matched_family_id: matched.id, matched_family_name: matched.name, similarity_score: Math.min(1, Math.max(0, Number(r.match_score) || 0)), explanation: String(r.match_explanation || "") }
-            : null,
-        },
-      };
+      const result = toMingaDoc(JSON.parse(text), data.households);
+      return "doc" in result ? { doc: result.doc, error: null } : { doc: null, error: result.error };
     } catch (e) {
       console.error(e);
+      if (e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError")) return { doc: null, error: "Gemini took too long. Try again." };
       return { doc: null, error: "Could not reach Gemini." };
     }
   });

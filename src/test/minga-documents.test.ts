@@ -9,7 +9,7 @@ describe("Minga document rules", () => {
     const doc = sampleDocument("census");
     expect(doc.entity_resolution?.matched_family_id).toBe("fam_01");
     expect(doc.entity_resolution?.similarity_score).toBe(0.92);
-    expect(doc.qty).toBe(12);
+    expect(doc.line_items[0]?.qty).toBe(12);
     expect(doc.low_confidence_warnings.length).toBeGreaterThan(0);
   });
   it("does not resolve hardware receipts as duplicate households", () => {
@@ -19,7 +19,8 @@ describe("Minga document rules", () => {
   it("requires a real selected household and valid reviewed values", () => {
     expect(validApproval(sampleDocument("factura"), ["fam_05"])).toBe(false);
     expect(validApproval({ ...sampleDocument("factura"), household: "fam_05" }, ["fam_05"])).toBe(true);
-    expect(validApproval({ ...sampleDocument("acta"), qty: -1 }, ["fam_03"])).toBe(false);
+    expect(validApproval({ ...sampleDocument("acta"), line_items: [{ item: "Tejas de Zinc", qty: -1 }] }, ["fam_03"])).toBe(false);
+    expect(validApproval({ ...sampleDocument("acta"), line_items: [] }, ["fam_03"])).toBe(false);
   });
   it("accepts PNG and JPG photos only", () => {
     expect(supportedPhoto("image/png")).toBe(true);
@@ -29,7 +30,7 @@ describe("Minga document rules", () => {
   it("converts at 3230 COP per USD and atomically updates delivery, phase ledger and totals", () => {
     const doc = sampleDocument("acta");
     expect(USD_TO_COP).toBe(3230);
-    const action = { householdId: "fam_03", items: [doc.item], usd: Math.round(doc.cop / USD_TO_COP), vendor: doc.vendor, receipt: "ACTA-TEST", id: "exp-test", date: "2026-11-07" };
+    const action = { householdId: "fam_03", items: doc.line_items.map((l) => l.item), usd: Math.round(doc.cop / USD_TO_COP), vendor: doc.vendor, receipt: "ACTA-TEST", id: "exp-test", date: "2026-11-07" };
     const state = deliveryReducer(initialDeliveryState(), action);
     expect(state.households.find((h) => h.id === "fam_03")?.status).toBe("delivered");
     expect(state.expenses[0]?.usd).toBe(182);

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useServerFn } from "@tanstack/react-start";
 import { analyzeMingaDocument } from "@/lib/minga-analyze.functions";
+import { prepareImage } from "@/lib/image-prep";
 import { SAMPLE_DELAY_MS, sampleDocument, supportedPhoto, validApproval, type MingaDoc, type SampleKind } from "@/lib/minga-documents";
 
 const STEPS = ["1. Document classification", "2. Handwriting & COP/USD review", "3. Household match review"];
@@ -27,13 +28,18 @@ export function Workbench() {
   const [dispatch, setDispatch] = useState<{ es: string; en: string } | null>(null);
   const [real, setReal] = useState(false);
   const analyze = useServerFn(analyzeMingaDocument);
+  const run = useRef(0);
+  const lastFile = useRef<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => () => {
+    run.current++;
     pending.current.forEach(clearTimeout);
     if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
   }, []);
 
   function load(kind: SampleKind, image: string | null = null, name = "") {
+    run.current++; setError(null);
     pending.current.forEach(clearTimeout);
     if (previewUrl.current && previewUrl.current !== image) URL.revokeObjectURL(previewUrl.current);
     previewUrl.current = image;
@@ -49,32 +55,35 @@ export function Workbench() {
     if (!f) return;
     if (!supportedPhoto(f.type)) { toast.error("Choose a PNG or JPG photo."); return; }
     if (f.size > 10_000_000) { toast.error("Photo is too large (max 10 MB)."); return; }
+    const id = ++run.current;
+    lastFile.current = f;
     pending.current.forEach(clearTimeout);
     if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
     const url = URL.createObjectURL(f);
     previewUrl.current = url;
-    setImg(url); setUploadName(f.name); setDoc(null); setStep(0); setBusy(true); setFallback(false); setAcknowledged(false); setReal(false);
+    setImg(url); setUploadName(f.name); setDoc(null); setStep(0); setBusy(true); setFallback(false); setAcknowledged(false); setReal(false); setError(null);
     pending.current = [setTimeout(() => setStep(1), 1500), setTimeout(() => setStep(2), 3500)];
     try {
-      const buf = new Uint8Array(await f.arrayBuffer());
-      let bin = "";
-      for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
-      const res = await analyze({ data: { mimeType: f.type as "image/png" | "image/jpeg", base64: btoa(bin), households: households.map((h) => ({ id: h.id, name: h.name })) } });
+      const { mimeType, base64 } = await prepareImage(f);
+      const res = await analyze({ data: { mimeType, base64, households: households.map((h) => ({ id: h.id, name: h.name })) } });
+      if (id !== run.current) return;
       pending.current.forEach(clearTimeout);
       if (res.doc) { setDoc(res.doc); setReal(true); setStep(3); }
-      else { toast.error(res.error ?? "Analysis failed."); setImg(null); }
+      else { setError(res.error ?? "Analysis failed."); toast.error(res.error ?? "Analysis failed."); }
     } catch {
-      toast.error("Analysis failed."); setImg(null);
-    } finally { setBusy(false); }
+      if (id !== run.current) return;
+      pending.current.forEach(clearTimeout);
+      setError("Analysis failed."); toast.error("Analysis failed.");
+    } finally { if (id === run.current) setBusy(false); }
   }
   const match = doc && households.find((h) => h.id === doc.household);
   const canApprove = doc && validApproval(doc, households.map((h) => h.id)) && acknowledged;
 
   function approve() {
     if (!doc || !canApprove) return;
-    deliver(doc.household, [doc.item], Math.round(doc.cop / USD_TO_COP), doc.vendor, `${real ? "AI" : "SAMPLE"}-${crypto.randomUUID()}`);
+    deliver(doc.household, doc.line_items.map((l) => l.item), Math.round(doc.cop / USD_TO_COP), doc.vendor, `${real ? "AI" : "SAMPLE"}-${crypto.randomUUID()}`);
     toast.success(`${real ? "Approved" : "Sample approved"}: ${match?.name} → delivered; ledger updated`);
-    setDoc(null); setImg(null);
+    setDoc(null); setImg(null); setError(null);
     if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
     previewUrl.current = null;
   }
@@ -109,9 +118,17 @@ export function Workbench() {
           <Button variant="outline" onClick={() => load("factura")}>Load Hardware Store Factura</Button>
         </div>
 
+        {error && img && !busy && (
+          <div role="alert" className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-destructive p-3 text-sm text-destructive">
+            <span className="flex-1">{error} Your photo is still loaded.</span>
+            <Button size="sm" variant="outline" onClick={() => onFile(lastFile.current ?? undefined)}>Retry</Button>
+          </div>
+        )}
+
         {(doc || busy) && (
           <>
-            <div className="mt-6 grid gap-2 md:grid-cols-3">
+            <p className="mt-6 text-xs text-muted-foreground">Progress steps are estimates while the photo is being read.</p>
+            <div className="mt-2 grid gap-2 md:grid-cols-3">
               {STEPS.map((s, i) => (
                 <div key={s} className={cn("flex items-center gap-2 rounded-lg border p-3 text-sm", step > i ? "border-primary bg-primary/5" : step === i ? "border-accent" : "opacity-50")}>
                   {step > i ? <Check className="h-4 w-4 text-primary" /> : step === i ? <Loader2 className="h-4 w-4 animate-spin text-accent" /> : <span className="h-4 w-4" />}{s}
@@ -128,12 +145,18 @@ export function Workbench() {
                 </div>
                 <div className="space-y-3">
                   <p className="text-xs font-semibold text-muted-foreground">{real ? "GEMINI EXTRACTION" : "SAMPLE"} · {doc.doc_type.replaceAll("_", " ")}</p>
-                  <Field label="Item"><Input value={doc.item} onChange={(e) => setDoc({ ...doc, item: e.target.value })} /></Field>
-                  <Field label="Quantity">
-                    <Input min={1} step={1} type="number" value={doc.qty} onChange={(e) => setDoc({ ...doc, qty: +e.target.value })} className={doc.low_confidence_warnings.length ? "border-warning bg-warning/15" : ""} />
+                  <Field label={doc.line_items.length > 1 ? "Items" : "Item"}>
+                    <div className="space-y-2">
+                      {doc.line_items.map((l, i) => (
+                        <div key={i} className="flex gap-2">
+                          <Input aria-label={`Item ${i + 1}`} value={l.item} onChange={(e) => setDoc({ ...doc, line_items: doc.line_items.map((x, j) => j === i ? { ...x, item: e.target.value } : x) })} />
+                          <Input aria-label={`Quantity ${i + 1}`} min={1} step={1} type="number" value={l.qty} onChange={(e) => setDoc({ ...doc, line_items: doc.line_items.map((x, j) => j === i ? { ...x, qty: +e.target.value } : x) })} className={cn("w-24 shrink-0", doc.low_confidence_warnings.length ? "border-warning bg-warning/15" : "")} />
+                        </div>
+                      ))}
+                    </div>
                     {doc.low_confidence_warnings.map((warning) => <span key={warning} className="mt-1 inline-block rounded bg-warning px-2 py-0.5 text-xs font-medium text-warning-foreground">⚠ {warning}</span>)}
                   </Field>
-                  <Field label="Amount (COP)">
+                  <Field label="Total (COP)">
                     <Input min={0} type="number" value={doc.cop} onChange={(e) => setDoc({ ...doc, cop: +e.target.value })} />
                     <span className="text-xs text-muted-foreground">≈ {formatMoney(doc.cop / USD_TO_COP, "USD")}</span>
                   </Field>
