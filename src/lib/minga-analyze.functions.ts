@@ -2,6 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import type { MingaDoc } from "./minga-documents";
 import { toMingaDoc } from "./minga-extraction";
+import { BUSY_COOLDOWN_MS, MISSING_COOLDOWN_MS, createCooldown } from "./model-cooldown";
+import { buildPrompt, providerOrder, targetId } from "./minga-schema";
+import { callClaude, callGemini, type ProviderResult } from "./minga-providers.server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const Input = z.object({
@@ -10,86 +13,37 @@ const Input = z.object({
   households: z.array(z.object({ id: z.string().max(40), name: z.string().max(120) })).max(500),
 });
 
-const schema = {
-  type: "OBJECT",
-  properties: {
-    doc_type: { type: "STRING", enum: ["CENSUS_FORM", "SIGNED_ACTA", "HARDWARE_RECEIPT"] },
-    title: { type: "STRING" },
-    transcription: { type: "STRING", description: "Faithful transcription of all legible text, line by line" },
-    household: { type: "STRING", description: "Matching household id from the list, or empty string" },
-    line_items: {
-      type: "ARRAY",
-      description: "One entry per distinct item line on the document",
-      items: { type: "OBJECT", properties: { item: { type: "STRING" }, qty: { type: "INTEGER" }, category: { type: "STRING", enum: ["roof", "water", "energy", "rebuild", "heal"] } }, required: ["item", "qty", "category"] },
-    },
-    total_cop: { type: "NUMBER", description: "Document total in whole Colombian pesos (printed total if present, else sum of lines)" },
-    vendor: { type: "STRING" },
-    low_confidence_warnings: { type: "ARRAY", items: { type: "STRING" } },
-    match_score: { type: "NUMBER", description: "0-1 confidence of household match" },
-    match_explanation: { type: "STRING" },
-  },
-  required: ["doc_type", "title", "transcription", "household", "line_items", "total_cop", "vendor", "low_confidence_warnings", "match_score", "match_explanation"],
-};
+// Shared across requests in this server process: a model that just failed is skipped for a while.
+const cooldown = createCooldown();
 
-// Most responsive model first (gemini-3.8-flash is often overloaded), then fallbacks for 429/503/timeouts.
-const MODELS = [...new Set([process.env["GEMINI_MODEL"], "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.8-flash"].filter(Boolean))] as string[];
-const TIMEOUT_MS = 20_000;
-
-const buildPrompt = (list: string) => `You read disaster-relief paperwork from Pijao, Quindío, Colombia (Spanish, often handwritten, often photographed at an angle).
-
-Step 1 - Classify: CENSUS_FORM (household needs list), SIGNED_ACTA (signed delivery receipt) or HARDWARE_RECEIPT (store factura).
-Step 2 - Transcribe all legible text into "transcription" first, line by line.
-Step 3 - Extract EVERY item line into line_items with its quantity. Do not collapse several items into one.
-Step 4 - Give each line a category: roof (zinc sheets, tejas, roofing), water (water/hygiene kits), energy (solar lamps/panels), rebuild (wood, guadua, bahareque, cement, tools for building), heal (seeds, gardens, first aid, recreation).
-
-Number rules (Colombian format): "." separates thousands and "," separates decimals, so "$226.100" is 226100 pesos, never 226.1. Amounts are whole pesos. For total_cop use the printed TOTAL when there is one; do not use a unit price. If no total is printed, sum the lines.
-Handwriting: if a digit or word is crossed out, overwritten or ambiguous, pick the most likely reading and add a low_confidence_warning naming the competing readings (e.g. "quantity looks like 12 or 17 tejas").
-
-Household match: ignore accents and surname/first-name order. Return the household id only when you are reasonably sure, otherwise "".
-Households (id|name):
-${list}
-
-Example - factura "FERRETERIA PIJAO / 2 lámparas solares / TOTAL $226.100" -> HARDWARE_RECEIPT, line_items [{item:"Lámpara solar", qty:2, category:"energy"}], total_cop 226100, household "".
-Example - handwritten census "Maria Gomez, necesita 12 (¿17?) tejas de zinc" -> CENSUS_FORM, line_items [{item:"Tejas de zinc", qty:12, category:"roof"}], a warning about 12 vs 17, household matched to the Gómez family.`;
+type Result = { doc: MingaDoc | null; error: string | null };
+const fail = (error: string): Result => ({ doc: null, error });
 
 export const analyzeMingaDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((d: unknown) => Input.parse(d))
-  .handler(async ({ data }): Promise<{ doc: MingaDoc | null; error: string | null }> => {
-    const key = process.env["GEMINI_API_KEY"];
-    if (!key) return { doc: null, error: "Gemini key is not configured." };
-    const prompt = buildPrompt(data.households.map((h) => `${h.id}|${h.name}`).join("\n"));
+  .handler(async ({ data }): Promise<Result> => {
+    const targets = providerOrder(process.env);
+    if (!targets.length) return fail("No AI key is configured. Set ANTHROPIC_API_KEY (or GEMINI_API_KEY) in .env.local.");
+    const candidates = targets.filter((t) => !cooldown.isCooling(targetId(t)));
+    if (!candidates.length) return fail("The AI reader is busy right now. Try again in a minute.");
+
+    const input = { prompt: buildPrompt(data.households.map((h) => `${h.id}|${h.name}`).join("\n")), mimeType: data.mimeType, base64: data.base64 };
     let busy = false;
-    for (const model of MODELS) {
-      try {
-        const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-          {
-            method: "POST",
-            headers: { "content-type": "application/json", "x-goog-api-key": key },
-            signal: AbortSignal.timeout(TIMEOUT_MS),
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: data.mimeType, data: data.base64 } }] }],
-              generationConfig: { temperature: 0, responseMimeType: "application/json", responseSchema: schema },
-            }),
-          },
-        );
-        if (!res.ok) {
-          console.error("Gemini error", model, res.status, await res.text());
-          // Overloaded, rate-limited or unavailable model: try the next one.
-          if (res.status === 429 || res.status === 404 || res.status >= 500) { busy = true; continue; }
-          return { doc: null, error: `Gemini could not read this photo (${res.status}).` };
-        }
-        const json = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
-        const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!text) return { doc: null, error: "Gemini returned no result for this photo." };
-        const result = toMingaDoc(JSON.parse(text), data.households);
-        return "doc" in result ? { doc: result.doc, error: null } : { doc: null, error: result.error };
-      } catch (e) {
-        console.error("Gemini fetch failed", model, e);
-        if (e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError")) { busy = true; continue; }
-        return { doc: null, error: "Could not reach Gemini." };
+    let unavailable: string | null = null;
+    for (const target of candidates) {
+      const key = process.env[target.provider === "claude" ? "ANTHROPIC_API_KEY" : "GEMINI_API_KEY"]!;
+      const res: ProviderResult = target.provider === "claude" ? await callClaude(key, target.model, input) : await callGemini(key, target.model, input);
+      if (res.ok) {
+        let raw: unknown;
+        try { raw = JSON.parse(res.text); } catch { return fail("The AI returned an unreadable result for this photo."); }
+        const mapped = toMingaDoc(raw, data.households);
+        return "doc" in mapped ? { doc: mapped.doc, error: null } : fail(mapped.error);
       }
+      if (res.kind === "fatal") return fail(res.message);
+      if (res.kind === "busy") { cooldown.mark(targetId(target), BUSY_COOLDOWN_MS); busy = true; }
+      else { cooldown.mark(targetId(target), MISSING_COOLDOWN_MS); unavailable ??= res.message; }
     }
-    return { doc: null, error: busy ? "Gemini is busy right now. Try again in a minute." : "Gemini could not read this photo." };
+    if (busy) return fail("The AI reader is busy right now. Try again in a minute.");
+    return fail(unavailable ?? "No AI model could read this photo.");
   });
