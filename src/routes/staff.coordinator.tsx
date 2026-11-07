@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Workbench } from "@/components/nido/Workbench";
+import { StaffGate } from "@/components/nido/StaffGate";
 
 export const Route = createFileRoute("/staff/coordinator")({
   head: () => ({ meta: [
@@ -11,5 +12,5 @@ export const Route = createFileRoute("/staff/coordinator")({
     { name: "twitter:card", content: "summary" },
     { name: "robots", content: "noindex" },
   ] }),
-  component: Workbench,
+  component: () => <StaffGate><Workbench /></StaffGate>,
 });

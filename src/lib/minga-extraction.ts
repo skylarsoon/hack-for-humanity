@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CATEGORIES, categorize, type ImpactCategory } from "./donor-impact";
 import type { MingaDoc } from "./minga-documents";
 
 /** Parses a Colombian-formatted amount: "." groups thousands and "," marks decimals ("$226.100" -> 226100). */
@@ -15,7 +16,7 @@ const Extraction = z.object({
   title: z.string().catch(""),
   transcription: z.string().catch(""),
   household: z.string().catch(""),
-  line_items: z.array(z.object({ item: z.string().catch(""), qty: z.coerce.number().catch(1) })).catch([]),
+  line_items: z.array(z.object({ item: z.string().catch(""), qty: z.coerce.number().catch(1), category: z.string().catch("") })).catch([]),
   total_cop: z.unknown(),
   vendor: z.string().catch(""),
   low_confidence_warnings: z.array(z.string()).catch([]),
@@ -32,14 +33,14 @@ export function toMingaDoc(raw: unknown, households: { id: string; name: string 
   const r = parsed.data;
   const matched = households.find((h) => h.id === r.household);
   const score = Math.min(1, Math.max(0, r.match_score));
-  const lines = r.line_items.map((l) => ({ item: l.item.trim(), qty: Math.max(1, Math.round(l.qty) || 1) })).filter((l) => l.item);
+  const lines = r.line_items.map((l) => ({ item: l.item.trim(), qty: Math.max(1, Math.round(l.qty) || 1), category: l.category in CATEGORIES ? (l.category as ImpactCategory) : categorize(l.item) })).filter((l) => l.item);
   return {
     doc: {
       title: r.title || "Document",
       preview: r.transcription,
       doc_type: r.doc_type,
       household: matched?.id ?? "",
-      line_items: lines.length ? lines : [{ item: "", qty: 1 }],
+      line_items: lines.length ? lines : [{ item: "", qty: 1, category: "heal" }],
       cop: Math.max(0, parseCop(r.total_cop)),
       vendor: r.vendor,
       low_confidence_warnings: r.low_confidence_warnings,

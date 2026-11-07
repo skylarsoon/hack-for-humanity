@@ -11,11 +11,11 @@ const RegionMap = lazy(() => import("./RegionMap"));
 const GOFUNDME = "https://www.gofundme.com/f/support-pijao-families-after-earthquake-and-fires?cp_src=d";
 
 export function DonorImpact() {
-  const { lang, currency, expenses, households } = useNido();
+  const { lang, currency, expenses, households, categorySpent, categoryNeeded } = useNido();
   const es = lang === "es";
-  const cats = impactByCategory(expenses);
+  const cats = categorySpent;
   const veredas = impactByVereda(expenses, households);
-  const total = Object.values(cats).reduce((a, b) => a + b, 0) || 1;
+  const scale = Math.max(1, ...(Object.keys(cats) as ImpactCategory[]).map((k) => cats[k] + categoryNeeded[k]));
   const [amount, setAmount] = useState(50);
   const buys = whatItBuys(amount);
 
@@ -28,7 +28,11 @@ export function DonorImpact() {
           {(Object.keys(CATEGORIES) as ImpactCategory[]).map((k) => (
             <div key={k}>
               <div className="flex justify-between text-sm"><span>{CATEGORIES[k].icon} {CATEGORIES[k][lang]}</span><b>{formatMoney(cats[k], currency)}</b></div>
-              <div className="mt-1 h-3 rounded-full bg-muted"><div className="h-3 rounded-full bg-primary" style={{ width: `${(cats[k] / total) * 100}%` }} /></div>
+              <div className="mt-1 flex h-3 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${CATEGORIES[k][lang]}: ${formatMoney(cats[k], currency)} ${es ? "gastado" : "spent"}, ${formatMoney(categoryNeeded[k], currency)} ${es ? "aún necesario" : "still needed"}`}>
+                <div className="h-3 bg-primary" style={{ width: `${(cats[k] / scale) * 100}%` }} />
+                <div className="h-3 bg-primary/30" style={{ width: `${(categoryNeeded[k] / scale) * 100}%` }} />
+              </div>
+              {categoryNeeded[k] > 0 && <p className="mt-0.5 text-xs text-muted-foreground">{es ? "Aún necesario" : "Still needed"}: {formatMoney(categoryNeeded[k], currency)}</p>}
             </div>
           ))}
         </div>

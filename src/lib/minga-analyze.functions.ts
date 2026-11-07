@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import type { MingaDoc } from "./minga-documents";
 import { toMingaDoc } from "./minga-extraction";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const Input = z.object({
   mimeType: z.enum(["image/png", "image/jpeg"]),
@@ -19,7 +20,7 @@ const schema = {
     line_items: {
       type: "ARRAY",
       description: "One entry per distinct item line on the document",
-      items: { type: "OBJECT", properties: { item: { type: "STRING" }, qty: { type: "INTEGER" } }, required: ["item", "qty"] },
+      items: { type: "OBJECT", properties: { item: { type: "STRING" }, qty: { type: "INTEGER" }, category: { type: "STRING", enum: ["roof", "water", "energy", "rebuild", "heal"] } }, required: ["item", "qty", "category"] },
     },
     total_cop: { type: "NUMBER", description: "Document total in whole Colombian pesos (printed total if present, else sum of lines)" },
     vendor: { type: "STRING" },
@@ -39,6 +40,7 @@ const buildPrompt = (list: string) => `You read disaster-relief paperwork from P
 Step 1 - Classify: CENSUS_FORM (household needs list), SIGNED_ACTA (signed delivery receipt) or HARDWARE_RECEIPT (store factura).
 Step 2 - Transcribe all legible text into "transcription" first, line by line.
 Step 3 - Extract EVERY item line into line_items with its quantity. Do not collapse several items into one.
+Step 4 - Give each line a category: roof (zinc sheets, tejas, roofing), water (water/hygiene kits), energy (solar lamps/panels), rebuild (wood, guadua, bahareque, cement, tools for building), heal (seeds, gardens, first aid, recreation).
 
 Number rules (Colombian format): "." separates thousands and "," separates decimals, so "$226.100" is 226100 pesos, never 226.1. Amounts are whole pesos. For total_cop use the printed TOTAL when there is one; do not use a unit price. If no total is printed, sum the lines.
 Handwriting: if a digit or word is crossed out, overwritten or ambiguous, pick the most likely reading and add a low_confidence_warning naming the competing readings (e.g. "quantity looks like 12 or 17 tejas").
@@ -47,10 +49,11 @@ Household match: ignore accents and surname/first-name order. Return the househo
 Households (id|name):
 ${list}
 
-Example - factura "FERRETERIA PIJAO / 2 lámparas solares / TOTAL $226.100" -> HARDWARE_RECEIPT, line_items [{item:"Lámpara solar", qty:2}], total_cop 226100, household "".
-Example - handwritten census "Maria Gomez, necesita 12 (¿17?) tejas de zinc" -> CENSUS_FORM, line_items [{item:"Tejas de zinc", qty:12}], a warning about 12 vs 17, household matched to the Gómez family.`;
+Example - factura "FERRETERIA PIJAO / 2 lámparas solares / TOTAL $226.100" -> HARDWARE_RECEIPT, line_items [{item:"Lámpara solar", qty:2, category:"energy"}], total_cop 226100, household "".
+Example - handwritten census "Maria Gomez, necesita 12 (¿17?) tejas de zinc" -> CENSUS_FORM, line_items [{item:"Tejas de zinc", qty:12, category:"roof"}], a warning about 12 vs 17, household matched to the Gómez family.`;
 
 export const analyzeMingaDocument = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .validator((d: unknown) => Input.parse(d))
   .handler(async ({ data }): Promise<{ doc: MingaDoc | null; error: string | null }> => {
     const key = process.env["GEMINI_API_KEY"];

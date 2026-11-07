@@ -30,6 +30,9 @@ export interface Expense {
   phase: Phase;
   householdIds: string[];
   receipt: string;
+  /** Set for rows loaded from the database. */
+  source?: "ai" | "manual" | "seed";
+  items?: { item: string; qty: number; category: string }[];
 }
 
 export const HAZARD = { lat: 4.342, lng: -75.715 };
