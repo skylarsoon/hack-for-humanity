@@ -36,22 +36,22 @@ export const HAZARD = { lat: 4.342, lng: -75.715 };
 export const CENTER = { lat: 4.3339, lng: -75.7039 };
 
 export const seedHouseholds = (): Household[] => [
-  { id: "fam_01", name: "Familia Gómez", vereda: "Vereda La Maizena", community: "Campesino", members: 5, phase: 2, status: "progress", lat: 4.3285, lng: -75.6955, needs: ["Madera Bahareque"], delivered: ["Tejas de Zinc", "Lámpara Solar"], costUsd: 1850, note: "Casa 1 — construcción sismo-resistente en bahareque" },
-  { id: "fam_02", name: "Familia Nengarabe", vereda: "Resguardo Ibanacuara", community: "Embera Chamí", members: 7, phase: 1, status: "delivered", lat: 4.3462, lng: -75.7205, needs: [], delivered: ["Tejas de Zinc", "Kit Agua/Higiene", "Lámpara Solar"], costUsd: 640 },
-  { id: "fam_03", name: "Familia Queragama", vereda: "Resguardo Ibanacuara", community: "Embera Chamí", members: 6, phase: 1, status: "needs", lat: 4.3481, lng: -75.7172, needs: ["Tejas de Zinc", "Kit Agua/Higiene"], delivered: [], costUsd: 0 },
-  { id: "fam_04", name: "Familia Tascón", vereda: "Resguardo Ibanacuara", community: "Embera Chamí", members: 4, phase: 3, status: "delivered", lat: 4.3445, lng: -75.7231, needs: [], delivered: ["Semillas Huerta", "Lámpara Solar"], costUsd: 210 },
-  { id: "fam_05", name: "Familia Osorio", vereda: "Vereda La Maizena", community: "Campesino", members: 3, phase: 1, status: "needs", lat: 4.3301, lng: -75.6921, needs: ["Tejas de Zinc", "Lámpara Solar"], delivered: [], costUsd: 0 },
-  { id: "fam_06", name: "Familia Henao", vereda: "Los Juanes", community: "Campesino", members: 5, phase: 2, status: "progress", lat: 4.3215, lng: -75.7085, needs: ["Madera Bahareque"], delivered: ["Tejas de Zinc"], costUsd: 720 },
-  { id: "fam_07", name: "Familia Arce", vereda: "Los Juanes", community: "Campesino", members: 6, phase: 3, status: "needs", lat: 4.3192, lng: -75.7041, needs: ["Semillas Huerta"], delivered: ["Kit Agua/Higiene"], costUsd: 95 },
-  { id: "fam_08", name: "Familia Siagama", vereda: "Resguardo Ibanacuara", community: "Embera Chamí", members: 8, phase: 1, status: "delivered", lat: 4.3499, lng: -75.7248, needs: [], delivered: ["Tejas de Zinc", "Kit Agua/Higiene", "Panel solar comunitario"], costUsd: 1320 },
+  { id: "HH_01", name: "Familia Gómez", vereda: "Vereda La Maizena", community: "Campesino", members: 5, phase: 2, status: "progress", lat: 4.3285, lng: -75.6955, needs: ["Madera Bahareque"], delivered: ["Tejas de Zinc", "Lámpara Solar"], costUsd: 1850, note: "Casa 1 — construcción sismo-resistente en bahareque" },
+  { id: "HH_02", name: "Familia Nengarabe", vereda: "Resguardo Ibanacuara", community: "Embera Chamí", members: 7, phase: 1, status: "delivered", lat: 4.3462, lng: -75.7205, needs: [], delivered: ["Tejas de Zinc", "Kit Agua/Higiene", "Lámpara Solar"], costUsd: 640 },
+  { id: "HH_03", name: "Familia Queragama", vereda: "Resguardo Ibanacuara", community: "Embera Chamí", members: 6, phase: 1, status: "needs", lat: 4.3481, lng: -75.7172, needs: ["Tejas de Zinc", "Kit Agua/Higiene"], delivered: [], costUsd: 0 },
+  { id: "HH_04", name: "Familia Tascón", vereda: "Resguardo Ibanacuara", community: "Embera Chamí", members: 4, phase: 3, status: "delivered", lat: 4.3445, lng: -75.7231, needs: [], delivered: ["Semillas Huerta", "Lámpara Solar"], costUsd: 210 },
+  { id: "HH_05", name: "Familia Osorio", vereda: "Vereda La Maizena", community: "Campesino", members: 3, phase: 1, status: "needs", lat: 4.3301, lng: -75.6921, needs: ["Tejas de Zinc", "Lámpara Solar"], delivered: [], costUsd: 0 },
+  { id: "HH_06", name: "Familia Henao", vereda: "Los Juanes", community: "Campesino", members: 5, phase: 2, status: "progress", lat: 4.3215, lng: -75.7085, needs: ["Madera Bahareque"], delivered: ["Tejas de Zinc"], costUsd: 720 },
+  { id: "HH_07", name: "Familia Arce", vereda: "Los Juanes", community: "Campesino", members: 6, phase: 3, status: "needs", lat: 4.3192, lng: -75.7041, needs: ["Semillas Huerta"], delivered: ["Kit Agua/Higiene"], costUsd: 95 },
+  { id: "HH_08", name: "Familia Siagama", vereda: "Resguardo Ibanacuara", community: "Embera Chamí", members: 8, phase: 1, status: "delivered", lat: 4.3499, lng: -75.7248, needs: [], delivered: ["Tejas de Zinc", "Kit Agua/Higiene", "Panel solar comunitario"], costUsd: 1320 },
 ];
 
 export const seedExpenses = (): Expense[] => [
-  { id: "exp_01", date: "2026-08-14", vendor: "Ferretería Pijao", method: "Factura", description: "48 tejas de zinc calibre 33 + clavos", usd: 1240, phase: 1, householdIds: ["fam_02", "fam_08", "fam_06"], receipt: "FV-00841" },
-  { id: "exp_02", date: "2026-08-16", vendor: "SolarAndes Armenia", method: "Nequi", description: "Panel solar comunitario Ibanacuara + 20 lámparas", usd: 2100, phase: 1, householdIds: ["fam_08", "fam_02", "fam_04"], receipt: "NQ-3381920" },
-  { id: "exp_03", date: "2026-08-22", vendor: "Aserrío La Maizena", method: "Efectivo + Acta", description: "Guadua y madera para bahareque — Casa 1", usd: 1650, phase: 2, householdIds: ["fam_01"], receipt: "ACTA-012" },
-  { id: "exp_04", date: "2026-08-25", vendor: "Droguería Pijao", method: "Factura", description: "30 kits de agua e higiene", usd: 780, phase: 1, householdIds: ["fam_02", "fam_07", "fam_08"], receipt: "FV-2290" },
-  { id: "exp_05", date: "2026-09-02", vendor: "Agrovivero Quindío", method: "Nequi", description: "Semillas de huerta + herramientas + materiales arte", usd: 430, phase: 3, householdIds: ["fam_04"], receipt: "NQ-3412207" },
+  { id: "exp_01", date: "2026-08-14", vendor: "Ferretería Pijao", method: "Factura", description: "48 tejas de zinc calibre 33 + clavos", usd: 1240, phase: 1, householdIds: ["HH_02", "HH_08", "HH_06"], receipt: "FV-00841" },
+  { id: "exp_02", date: "2026-08-16", vendor: "SolarAndes Armenia", method: "Nequi", description: "Panel solar comunitario Ibanacuara + 20 lámparas", usd: 2100, phase: 1, householdIds: ["HH_08", "HH_02", "HH_04"], receipt: "NQ-3381920" },
+  { id: "exp_03", date: "2026-08-22", vendor: "Aserrío La Maizena", method: "Efectivo + Acta", description: "Guadua y madera para bahareque — Casa 1", usd: 1650, phase: 2, householdIds: ["HH_01"], receipt: "ACTA-012" },
+  { id: "exp_04", date: "2026-08-25", vendor: "Droguería Pijao", method: "Factura", description: "30 kits de agua e higiene", usd: 780, phase: 1, householdIds: ["HH_02", "HH_07", "HH_08"], receipt: "FV-2290" },
+  { id: "exp_05", date: "2026-09-02", vendor: "Agrovivero Quindío", method: "Nequi", description: "Semillas de huerta + herramientas + materiales arte", usd: 430, phase: 3, householdIds: ["HH_04"], receipt: "NQ-3412207" },
 ];
 
 export const SUPPLIES = [
@@ -80,6 +80,6 @@ export function formatMoney(usd: number, c: Currency) {
 }
 
 export const T = {
-  es: { dash: "Tablero Público de Cuentas", field: "Cuadrilla sin Señal (Móvil)", ai: "Mesa del Coordinador IA", raised: "Fondos recaudados", spent: "Gastado con recibo verificado", assisted: "Familias atendidas", crews: "Mingas activas este sábado", households: "78 hogares afectados", ledger: "Cuentas a la Vista", all: "Todas", search: "Buscar familia o vereda…", embed: "Insertar widget" },
-  en: { dash: "Public Open-Books Dashboard", field: "Offline Field Crew (Mobile)", ai: "AI Coordinator Workbench", raised: "Total funds raised", spent: "Spent on verified receipts", assisted: "Households assisted", crews: "Active Saturday minga crews", households: "78 Affected Households Status", ledger: "Open-Book Expense Ledger", all: "All", search: "Search family or vereda…", embed: "Embed Widget" },
+  es: { dash: "Tablero Público de Cuentas", field: "Cuadrilla sin Señal (Móvil)", build: "Mingas y Obras (Verificado)", ai: "Mesa del Coordinador IA", raised: "Fondos recaudados", spent: "Gastado con recibo verificado", assisted: "Familias atendidas", crews: "Mingas activas este sábado", households: "78 hogares afectados", ledger: "Cuentas a la Vista", all: "Todas", search: "Buscar familia o vereda…", embed: "Insertar widget" },
+  en: { dash: "Public Open-Books Dashboard", field: "Offline Field Crew (Mobile)", build: "Builders & Mingas (Verified)", ai: "AI Coordinator Workbench", raised: "Total funds raised", spent: "Spent on verified receipts", assisted: "Households assisted", crews: "Active Saturday minga crews", households: "78 Affected Households Status", ledger: "Open-Book Expense Ledger", all: "All", search: "Search family or vereda…", embed: "Embed Widget" },
 };

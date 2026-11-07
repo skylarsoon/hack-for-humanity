@@ -31,7 +31,7 @@ export default function PijaoMap({ households, currency }: { households: Househo
         ? `<div style="margin-top:6px"><b>Entregado:</b> ${h.delivered.join(", ")}<br/><b>Costo:</b> ${formatMoney(h.costUsd, currency)}<br/><span style="display:inline-block;margin-top:4px;padding:2px 8px;border-radius:99px;background:#2e8b57;color:#fff;font-size:11px">✔ Signed Acta Verified</span></div>`
         : `<div style="margin-top:6px"><b>Necesita:</b> ${h.needs.join(", ") || "—"}</div>`;
       L.circleMarker([h.lat, h.lng], { radius: 10, color: "#fff", weight: 2, fillColor: COLORS[h.status], fillOpacity: 0.95 })
-        .bindPopup(`<b>${h.name}</b> (${h.id})<br/>${h.vereda} · ${h.community}${h.note ? `<br/><i>${h.note}</i>` : ""}${proof}`)
+        .bindPopup(`<b>${h.id}</b><br/>${h.vereda} · ${h.community}${proof}`)
         .addTo(g);
     });
   }, [households, currency]);
