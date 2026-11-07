@@ -1,5 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Dashboard } from "@/components/nido/Dashboard";
+import { DonorImpact } from "@/components/nido/DonorImpact";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useNido } from "@/lib/nido-store";
+import { T } from "@/lib/nido-data";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -12,5 +16,19 @@ export const Route = createFileRoute("/")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: Dashboard,
+  component: DonorPage,
 });
+
+function DonorPage() {
+  const { lang } = useNido();
+  return (
+    <Tabs defaultValue="dash">
+      <TabsList className="mb-4">
+        <TabsTrigger value="dash">{T[lang].dash}</TabsTrigger>
+        <TabsTrigger value="build">{T[lang].build}</TabsTrigger>
+      </TabsList>
+      <TabsContent value="dash"><Dashboard /></TabsContent>
+      <TabsContent value="build"><DonorImpact /></TabsContent>
+    </Tabs>
+  );
+}
