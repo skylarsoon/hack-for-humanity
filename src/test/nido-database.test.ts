@@ -20,9 +20,9 @@ beforeEach(async () => {
     CREATE FUNCTION realtime.send(jsonb,text,text,boolean) RETURNS void LANGUAGE sql AS $$ SELECT $$;
     CREATE FUNCTION realtime.topic() RETURNS text LANGUAGE sql AS $$ SELECT current_setting('realtime.topic',true) $$;
   `);
-  const dir = new URL("../../drizzle/migrations/", import.meta.url);
+  const dir = `${process.cwd()}/drizzle/migrations/`;
   for (const file of readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()) {
-    const sql = readFileSync(new URL(file, dir), "utf8");
+    const sql = readFileSync(`${dir}${file}`, "utf8");
     // PGlite has no replication service; all policies, functions and grants run unchanged.
     await db.exec(sql.replace(/ALTER PUBLICATION supabase_realtime ADD TABLE[^;]+;/g, ""));
   }
